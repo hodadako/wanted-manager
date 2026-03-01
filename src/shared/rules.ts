@@ -88,10 +88,6 @@ export function matchRule(candidate: JobCandidate, rule: HideRule): boolean {
     return false;
   }
 
-  if (rule.matchMode === 'AND') {
-    return configuredChecks.every(Boolean);
-  }
-
   return configuredChecks.some(Boolean);
 }
 

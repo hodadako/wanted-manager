@@ -4,7 +4,6 @@ import type {
   GetPageHiddenItemsResponse,
   HiddenJobItem,
   HideRule,
-  RuleMatchMode,
   RuntimeRequest,
   Settings
 } from '../shared/types';
@@ -15,7 +14,6 @@ const formEl = document.getElementById('rule-form') as HTMLFormElement;
 const companyInputEl = document.getElementById('company-keywords') as HTMLInputElement;
 const titleInputEl = document.getElementById('title-keywords') as HTMLInputElement;
 const jobRefsInputEl = document.getElementById('job-refs') as HTMLInputElement;
-const matchModeEl = document.getElementById('match-mode') as HTMLSelectElement;
 const ruleErrorEl = document.getElementById('rule-error') as HTMLParagraphElement;
 
 let settingsState: Settings;
@@ -58,7 +56,7 @@ function summarizeRule(rule: HideRule): string {
     sections.push(`ID/링크(${rule.jobRefs.join(', ')})`);
   }
 
-  return `${rule.matchMode} / ${sections.join(' + ') || '조건 없음'}`;
+  return `OR / ${sections.join(' + ') || '조건 없음'}`;
 }
 
 function renderRules(settings: Settings): void {
@@ -305,7 +303,7 @@ async function handleAddRule(event: SubmitEvent): Promise<void> {
     companyKeywords,
     titleKeywords,
     jobRefs,
-    matchMode: matchModeEl.value as RuleMatchMode,
+    matchMode: 'OR',
     action: 'hide'
   };
 
@@ -316,7 +314,6 @@ async function handleAddRule(event: SubmitEvent): Promise<void> {
     await refreshHiddenData();
 
     formEl.reset();
-    matchModeEl.value = 'AND';
   } catch {
     ruleErrorEl.textContent = '규칙 저장 중 오류가 발생했습니다.';
   }
