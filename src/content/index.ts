@@ -12,8 +12,10 @@ import {
 } from '../shared/selectors';
 import { DEFAULT_SETTINGS, STORAGE_KEY, getSettings, saveSettings } from '../shared/storage';
 import type {
+  GetPageHiddenItemsResponse,
   GetLastHiddenCountResponse,
   HideRule,
+  HiddenJobItem,
   JobCandidate,
   RuntimeRequest,
   Settings
@@ -39,6 +41,7 @@ let flushScheduled = false;
 let rafHandle: number | null = null;
 let timerHandle: number | null = null;
 let lastHiddenCount = 0;
+let currentHiddenItems: HiddenJobItem[] = [];
 let currentRouteKey = '';
 let settingsCache: Settings = { ...DEFAULT_SETTINGS };
 let routeSequence = 0;
@@ -141,6 +144,15 @@ function applyAction(cardEl: HTMLElement, action: 'remove' | 'hide'): boolean {
   return true;
 }
 
+function pushHiddenItem(item: HiddenJobItem): void {
+  const key = `${item.jobId ?? ''}::${item.url}`;
+  const exists = currentHiddenItems.some((entry) => `${entry.jobId ?? ''}::${entry.url}` === key);
+  if (exists) {
+    return;
+  }
+  currentHiddenItems.push(item);
+}
+
 function createQuickHideRule(jobId: string): HideRule {
   return {
     id: `${QUICK_HIDE_RULE_PREFIX}${jobId}`,
@@ -173,7 +185,11 @@ function showQuickToast(message: string): void {
   window.setTimeout(() => toast.remove(), 1500);
 }
 
-async function addQuickHideRuleAndApply(jobId: string, cardEl: HTMLElement): Promise<void> {
+async function addQuickHideRuleAndApply(
+  jobId: string,
+  cardEl: HTMLElement,
+  meta: { title: string | null; company: string | null; url: string }
+): Promise<void> {
   const exists = settingsCache.rules.some(
     (rule) => rule.enabled && rule.jobRefs.some((ref) => ref.trim() === jobId)
   );
@@ -188,6 +204,13 @@ async function addQuickHideRuleAndApply(jobId: string, cardEl: HTMLElement): Pro
 
   if (applyAction(cardEl, 'hide')) {
     lastHiddenCount += 1;
+    pushHiddenItem({
+      title: meta.title,
+      company: meta.company,
+      jobId,
+      jobRole: meta.title,
+      url: meta.url
+    });
   }
 }
 
@@ -201,7 +224,8 @@ function ensureCardPositioning(cardEl: HTMLElement): void {
   }
 }
 
-function ensureQuickHideButton(cardEl: HTMLElement, jobId: string | null): void {
+function ensureQuickHideButton(candidate: JobCandidate): void {
+  const { cardEl, jobId, title, company, url } = candidate;
   if (!jobId || cardEl.dataset.wantedHidden === '1') {
     return;
   }
@@ -226,7 +250,7 @@ function ensureQuickHideButton(cardEl: HTMLElement, jobId: string | null): void 
     'position: absolute',
     'top: 8px',
     'right: 8px',
-    'z-index: 1000',
+    'z-index: 2',
     'border: 0',
     'border-radius: 8px',
     'padding: 4px 8px',
@@ -240,7 +264,7 @@ function ensureQuickHideButton(cardEl: HTMLElement, jobId: string | null): void 
   button.addEventListener('click', (event) => {
     event.preventDefault();
     event.stopPropagation();
-    void addQuickHideRuleAndApply(jobId, cardEl).then(() => {
+    void addQuickHideRuleAndApply(jobId, cardEl, { title, company, url }).then(() => {
       showQuickToast(`공고 ${jobId} 숨김 규칙이 추가되었습니다.`);
     });
   });
@@ -323,16 +347,23 @@ function flushPending(): void {
       company
     };
 
-    ensureQuickHideButton(cardEl, jobId);
+    ensureQuickHideButton(candidate);
 
     const matched = matchAnyRule(candidate, settingsCache.rules);
-    if (!matched.matched || !matched.action) {
+    if (!matched.matched) {
       continue;
     }
 
-    if (applyAction(cardEl, matched.action)) {
+    if (applyAction(cardEl, 'hide')) {
       hiddenApplied += 1;
       lastHiddenCount += 1;
+      pushHiddenItem({
+        title,
+        company,
+        jobId,
+        jobRole: title,
+        url
+      });
     }
   }
 
@@ -362,6 +393,7 @@ function flushPending(): void {
 
 function observeListMode(): void {
   lastHiddenCount = 0;
+  currentHiddenItems = [];
   const target = document.querySelector('main') ?? document.body;
 
   enqueueNode(target);
@@ -567,16 +599,23 @@ function bindGlobalEvents(): void {
   });
 
   chrome.runtime.onMessage.addListener((request: RuntimeRequest, _sender, sendResponse) => {
-    if (request?.type !== 'GET_LAST_HIDDEN_COUNT') {
+    if (request?.type === 'GET_LAST_HIDDEN_COUNT') {
+      const response: GetLastHiddenCountResponse = {
+        lastHiddenCount,
+        route: currentRouteKey || location.pathname
+      };
+
+      sendResponse(response);
       return;
     }
 
-    const response: GetLastHiddenCountResponse = {
-      lastHiddenCount,
-      route: currentRouteKey || location.pathname
-    };
-
-    sendResponse(response);
+    if (request?.type === 'GET_PAGE_HIDDEN_ITEMS') {
+      const response: GetPageHiddenItemsResponse = {
+        route: currentRouteKey || location.pathname,
+        items: currentHiddenItems
+      };
+      sendResponse(response);
+    }
   });
 
   window.setInterval(() => {

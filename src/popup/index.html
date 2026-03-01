@@ -13,6 +13,11 @@
         <p id="hidden-count">현재 페이지에서 마지막으로 숨긴 개수: -</p>
       </header>
 
+      <section>
+        <h2>숨긴 공고 목록 (현재 페이지)</h2>
+        <div id="hidden-job-list" class="hidden-list"></div>
+      </section>
+
       <section class="toggles" aria-label="옵션">
         <label class="toggle-row" for="detail-enabled">
           <span>상세 페이지 옵션 (/wd/{id})</span>
@@ -42,9 +47,8 @@
             <option value="OR">OR</option>
           </select>
 
-          <label for="action-mode">동작</label>
-          <select id="action-mode" name="action">
-            <option value="remove">제거 (remove)</option>
+          <label for="action-mode">동작 (고정)</label>
+          <select id="action-mode" name="action" disabled>
             <option value="hide">숨김 (hide)</option>
           </select>
 

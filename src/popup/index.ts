@@ -1,13 +1,16 @@
 import { deleteRule, getSettings, saveSettings, toggleRule, upsertRule } from '../shared/storage';
 import type {
+  GetPageHiddenItemsResponse,
   GetLastHiddenCountResponse,
   HideRule,
+  HiddenJobItem,
   RuleMatchMode,
   RuntimeRequest,
   Settings
 } from '../shared/types';
 
 const hiddenCountEl = document.getElementById('hidden-count') as HTMLParagraphElement;
+const hiddenJobListEl = document.getElementById('hidden-job-list') as HTMLDivElement;
 const detailEnabledEl = document.getElementById('detail-enabled') as HTMLInputElement;
 const debugEnabledEl = document.getElementById('debug-enabled') as HTMLInputElement;
 const formEl = document.getElementById('rule-form') as HTMLFormElement;
@@ -21,8 +24,13 @@ const ruleErrorEl = document.getElementById('rule-error') as HTMLParagraphElemen
 
 let settingsState: Settings;
 
-function actionLabel(action: HideRule['action']): string {
-  return action === 'remove' ? '제거 (remove)' : '숨김 (hide)';
+function actionLabel(): string {
+  return '숨김 (hide)';
+}
+
+function safeText(value: string | null | undefined): string {
+  const text = value?.trim();
+  return text && text.length > 0 ? text : '-';
 }
 
 function parseCsv(value: string): string[] {
@@ -99,8 +107,8 @@ function renderRules(settings: Settings): void {
     title.textContent = makeRuleName(rule);
 
     const badge = document.createElement('span');
-    badge.className = `badge ${rule.action}`;
-    badge.textContent = actionLabel(rule.action);
+    badge.className = 'badge hide';
+    badge.textContent = actionLabel();
 
     head.appendChild(title);
     head.appendChild(badge);
@@ -147,6 +155,45 @@ function renderSettings(settings: Settings): void {
   renderRules(settings);
 }
 
+function renderHiddenJobs(items: HiddenJobItem[]): void {
+  hiddenJobListEl.innerHTML = '';
+
+  if (items.length === 0) {
+    const empty = document.createElement('p');
+    empty.className = 'rule-meta';
+    empty.textContent = '이 페이지에서 숨긴 공고가 없습니다.';
+    hiddenJobListEl.appendChild(empty);
+    return;
+  }
+
+  items.forEach((item) => {
+    const row = document.createElement('article');
+    row.className = 'hidden-item';
+
+    const title = document.createElement('p');
+    title.className = 'rule-title';
+    title.textContent = `이름: ${safeText(item.title)}`;
+
+    const company = document.createElement('p');
+    company.className = 'rule-meta';
+    company.textContent = `회사: ${safeText(item.company)}`;
+
+    const idLine = document.createElement('p');
+    idLine.className = 'rule-meta';
+    idLine.textContent = `ID: ${safeText(item.jobId)}`;
+
+    const role = document.createElement('p');
+    role.className = 'rule-meta';
+    role.textContent = `직무: ${safeText(item.jobRole)}`;
+
+    row.appendChild(title);
+    row.appendChild(company);
+    row.appendChild(idLine);
+    row.appendChild(role);
+    hiddenJobListEl.appendChild(row);
+  });
+}
+
 function queryActiveTab(): Promise<chrome.tabs.Tab | null> {
   return new Promise((resolve) => {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
@@ -169,20 +216,39 @@ function requestHiddenCount(tabId: number): Promise<GetLastHiddenCountResponse |
   });
 }
 
+function requestHiddenJobs(tabId: number): Promise<GetPageHiddenItemsResponse | null> {
+  return new Promise((resolve) => {
+    const message: RuntimeRequest = { type: 'GET_PAGE_HIDDEN_ITEMS' };
+    chrome.tabs.sendMessage(tabId, message, (response: GetPageHiddenItemsResponse | undefined) => {
+      if (chrome.runtime.lastError) {
+        resolve(null);
+        return;
+      }
+
+      resolve(response ?? null);
+    });
+  });
+}
+
 async function refreshHiddenCount(): Promise<void> {
   const activeTab = await queryActiveTab();
   if (!activeTab?.id) {
     hiddenCountEl.textContent = '현재 페이지에서 마지막으로 숨긴 개수: -';
+    renderHiddenJobs([]);
     return;
   }
 
   const response = await requestHiddenCount(activeTab.id);
   if (!response) {
     hiddenCountEl.textContent = '현재 페이지에서 마지막으로 숨긴 개수: -';
+    renderHiddenJobs([]);
     return;
   }
 
   hiddenCountEl.textContent = `현재 페이지에서 마지막으로 숨긴 개수: ${response.lastHiddenCount}`;
+
+  const hiddenJobs = await requestHiddenJobs(activeTab.id);
+  renderHiddenJobs(hiddenJobs?.items ?? []);
 }
 
 async function handleAddRule(event: SubmitEvent): Promise<void> {
@@ -205,7 +271,7 @@ async function handleAddRule(event: SubmitEvent): Promise<void> {
     titleKeywords,
     jobRefs,
     matchMode: matchModeEl.value as RuleMatchMode,
-    action: actionModeEl.value as 'remove' | 'hide'
+    action: 'hide'
   };
 
   const next = await upsertRule(rule);
@@ -214,7 +280,7 @@ async function handleAddRule(event: SubmitEvent): Promise<void> {
 
   formEl.reset();
   matchModeEl.value = 'AND';
-  actionModeEl.value = 'remove';
+  actionModeEl.value = 'hide';
 }
 
 async function handleRuleListClick(event: Event): Promise<void> {

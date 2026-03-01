@@ -101,6 +101,18 @@ button {
   gap: 8px;
 }
 
+.hidden-list {
+  display: grid;
+  gap: 8px;
+}
+
+.hidden-item {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 10px;
+}
+
 .rule-item {
   background: #ffffff;
   border: 1px solid #e5e7eb;

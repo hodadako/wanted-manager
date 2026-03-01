@@ -34,12 +34,29 @@ export interface GetLastHiddenCountRequest {
   type: 'GET_LAST_HIDDEN_COUNT';
 }
 
+export interface GetPageHiddenItemsRequest {
+  type: 'GET_PAGE_HIDDEN_ITEMS';
+}
+
 export interface GetLastHiddenCountResponse {
   lastHiddenCount: number;
   route: string;
 }
 
-export type RuntimeRequest = GetLastHiddenCountRequest;
+export interface HiddenJobItem {
+  title: string | null;
+  company: string | null;
+  jobId: string | null;
+  jobRole: string | null;
+  url: string;
+}
+
+export interface GetPageHiddenItemsResponse {
+  route: string;
+  items: HiddenJobItem[];
+}
+
+export type RuntimeRequest = GetLastHiddenCountRequest | GetPageHiddenItemsRequest;
 
 export interface RuleMatchResult {
   matched: boolean;

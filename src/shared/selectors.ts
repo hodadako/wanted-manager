@@ -49,6 +49,37 @@ function isLikelyCompany(text: string): boolean {
   return textLengthInRange(text, 2, 30);
 }
 
+function isNoiseCompanyText(text: string): boolean {
+  const normalized = normalizeWhitespace(text).toLowerCase();
+  const noiseKeywords = [
+    '합격보상금',
+    '만원',
+    '원',
+    '채용보상금',
+    '채용',
+    '추천',
+    '북마크',
+    '지원',
+    '상시',
+    '마감',
+    '직무',
+    '지역',
+    '경력',
+    '연봉',
+    '스톡옵션'
+  ];
+
+  if (noiseKeywords.some((keyword) => normalized.includes(keyword))) {
+    return true;
+  }
+
+  if (/^\d[\d,]*\s*(원|만원)$/.test(normalized)) {
+    return true;
+  }
+
+  return false;
+}
+
 function hasVisibleRect(el: Element): boolean {
   const rect = el.getBoundingClientRect();
   return rect.width > 0 && rect.height > 0;
@@ -277,6 +308,7 @@ export function extractCompany(card: HTMLElement, title: string | null): string 
 
   const candidates = getTextCandidates(card, COMPANY_CANDIDATE_SELECTORS)
     .filter((text) => isLikelyCompany(text))
+    .filter((text) => !isNoiseCompanyText(text))
     .filter((text) => !normalizedTitle || normalizeWhitespace(text) !== normalizedTitle);
 
   if (candidates.length > 0) {
@@ -292,7 +324,8 @@ export function extractCompany(card: HTMLElement, title: string | null): string 
   const lines = (card.textContent ?? '')
     .split('\n')
     .map((line) => normalizeWhitespace(line))
-    .filter((line) => isLikelyCompany(line));
+    .filter((line) => isLikelyCompany(line))
+    .filter((line) => !isNoiseCompanyText(line));
 
   const fallback = lines.find((line) => !normalizedTitle || line !== normalizedTitle);
   return fallback ?? null;
