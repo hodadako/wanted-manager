@@ -262,7 +262,7 @@ async function bootstrap(): Promise<void> {
   await refreshHiddenCount();
 
   formEl.addEventListener('submit', (event) => {
-    void handleAddRule(event as SubmitEvent);
+    void handleAddRule(event);
   });
 
   ruleListEl.addEventListener('click', (event) => {

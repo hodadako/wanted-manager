@@ -29,7 +29,7 @@ const MAX_ANCHORS_PER_FLUSH = 500;
 
 let cleanupFns: Array<() => void> = [];
 let observer: MutationObserver | null = null;
-let pendingNodes = new Set<Node>();
+const pendingNodes = new Set<Node>();
 let flushScheduled = false;
 let rafHandle: number | null = null;
 let timerHandle: number | null = null;
@@ -90,14 +90,14 @@ function scheduleFlush(): void {
   if (typeof requestAnimationFrame === 'function') {
     rafHandle = requestAnimationFrame(() => {
       rafHandle = null;
-      void flushPending();
+      flushPending();
     });
     return;
   }
 
   timerHandle = window.setTimeout(() => {
     timerHandle = null;
-    void flushPending();
+    flushPending();
   }, 0);
 }
 
@@ -121,7 +121,7 @@ function applyAction(cardEl: HTMLElement, action: 'remove' | 'hide'): boolean {
   return true;
 }
 
-async function flushPending(): Promise<void> {
+function flushPending(): void {
   flushScheduled = false;
 
   if (!isWdListPath(location.pathname)) {
@@ -332,14 +332,15 @@ function patchHistoryOnce(): void {
 
   window.__wantedHiderHistoryPatched = true;
 
-  const { pushState, replaceState } = history;
+  const pushState = history.pushState.bind(history);
+  const replaceState = history.replaceState.bind(history);
 
   history.pushState = function patchedPushState(
     data: unknown,
     unused: string,
     url?: string | URL | null
   ) {
-    const result = pushState.call(this, data, unused, url);
+    const result = pushState(data, unused, url);
     window.dispatchEvent(new CustomEvent(NAV_EVENT_NAME));
     return result;
   };
@@ -349,7 +350,7 @@ function patchHistoryOnce(): void {
     unused: string,
     url?: string | URL | null
   ) {
-    const result = replaceState.call(this, data, unused, url);
+    const result = replaceState(data, unused, url);
     window.dispatchEvent(new CustomEvent(NAV_EVENT_NAME));
     return result;
   };

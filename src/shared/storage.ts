@@ -9,8 +9,9 @@ export const DEFAULT_SETTINGS: Settings = {
 };
 
 function mergeWithDefaults(input?: Partial<Settings>): Settings {
+  const rules = input?.rules;
   return {
-    rules: Array.isArray(input?.rules) ? input!.rules : [],
+    rules: Array.isArray(rules) ? rules : [],
     detailPageEnabled: Boolean(input?.detailPageEnabled),
     debug: Boolean(input?.debug)
   };
