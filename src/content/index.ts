@@ -1,5 +1,6 @@
 import { matchAnyRule } from '../shared/rules';
 import {
+  COMPANY_LINK_SELECTORS,
   collectCompanyAnchors,
   JOB_LINK_SELECTORS,
   collectJobAnchors,
@@ -258,9 +259,23 @@ function ensureCardPositioning(cardEl: HTMLElement): void {
   }
 }
 
+function isQuickHideButtonTarget(cardEl: HTMLElement, jobId: string): boolean {
+  const dataCy = cardEl.getAttribute('data-cy')?.toLowerCase() ?? '';
+  const hasJobCardMarker = dataCy.includes('job-card');
+  const hasPositionMarker =
+    Boolean(cardEl.querySelector('[data-position-id]')) ||
+    Boolean(cardEl.querySelector(`[data-position-id="${jobId}"]`));
+
+  return hasJobCardMarker || hasPositionMarker;
+}
+
 function ensureQuickHideButton(candidate: JobCandidate): void {
   const { cardEl, jobId } = candidate;
   if (!jobId || cardEl.dataset.wantedHidden === '1') {
+    return;
+  }
+
+  if (!isQuickHideButtonTarget(cardEl, jobId)) {
     return;
   }
 
@@ -284,7 +299,7 @@ function ensureQuickHideButton(candidate: JobCandidate): void {
     'position: absolute',
     'top: 8px',
     'right: 8px',
-    'z-index: 2',
+    'z-index: 0',
     'border: 0',
     'border-radius: 8px',
     'padding: 4px 8px',
@@ -310,6 +325,40 @@ function ensureQuickHideButton(candidate: JobCandidate): void {
   });
 
   cardEl.appendChild(button);
+}
+
+function resolveCompanyHideTarget(cardEl: HTMLElement): HTMLElement {
+  const companySelector = COMPANY_LINK_SELECTORS.join(',');
+
+  let cursor: HTMLElement | null = cardEl;
+  let depth = 0;
+  while (cursor && depth < 8) {
+    const parent = cursor.parentElement;
+    if (!parent) {
+      break;
+    }
+
+    const siblingItems: HTMLElement[] = [];
+    // DOM typing can degrade to any in some environments; guarded by instance checks below.
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+    let child: Element | null = parent.firstElementChild;
+    while (child) {
+      if (child instanceof HTMLElement && child.querySelector(companySelector)) {
+        siblingItems.push(child);
+      }
+      child = child.nextElementSibling;
+    }
+
+    if (siblingItems.length >= 2 && siblingItems.includes(cursor)) {
+      return cursor;
+    }
+
+    cursor = parent instanceof HTMLElement ? parent : null;
+    depth += 1;
+  }
+
+  const outer = cardEl.closest<HTMLElement>('[role="listitem"], li, article');
+  return outer ?? cardEl;
 }
 
 function resolveCandidateMeta(candidate: JobCandidate): {
@@ -461,10 +510,11 @@ function flushPending(): void {
       continue;
     }
 
-    if (processedCards.has(cardEl) || cardEl.dataset.wantedHidden === '1') {
+    const hideTarget = resolveCompanyHideTarget(cardEl);
+    if (processedCards.has(hideTarget) || hideTarget.dataset.wantedHidden === '1') {
       continue;
     }
-    processedCards.add(cardEl);
+    processedCards.add(hideTarget);
 
     const url = normalizeJobUrl(anchor.getAttribute('href'), location.origin) ?? anchor.href;
     if (!url) {
@@ -474,7 +524,7 @@ function flushPending(): void {
     const company = extractCompanyFromCompanyCard(cardEl, anchor);
     const candidate: JobCandidate = {
       anchor,
-      cardEl,
+      cardEl: hideTarget,
       url,
       jobId: extractJobId(url),
       title: null,
@@ -486,7 +536,7 @@ function flushPending(): void {
       continue;
     }
 
-    if (applyAction(cardEl, 'hide')) {
+    if (applyAction(hideTarget, 'hide')) {
       hiddenApplied += 1;
       lastHiddenCount += 1;
       pushHiddenItem({
