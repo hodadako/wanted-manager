@@ -752,6 +752,8 @@ async function restartForRoute(trigger: string): Promise<void> {
 
   const detailInfo = isWdDetailPath(currentRouteKey);
   if (detailInfo.matched && detailInfo.jobId) {
+    // Apply list filtering on detail pages as well (recommended positions, related cards).
+    observeListMode();
     handleDetailMode(detailInfo.jobId);
     return;
   }
