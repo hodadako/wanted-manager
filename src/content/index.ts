@@ -96,6 +96,14 @@ function getRouteKey(): string {
   return location.pathname;
 }
 
+function shouldFilterCardsOnPath(pathname: string): boolean {
+  if (isWdListPath(pathname)) {
+    return true;
+  }
+
+  return isWdDetailPath(pathname).matched;
+}
+
 function maybeRestartForPathChange(trigger: string): void {
   const nextPath = getRouteKey();
   if (nextPath === lastSeenPathname) {
@@ -393,7 +401,7 @@ function resolveCandidateMeta(candidate: JobCandidate): {
 function flushPending(): void {
   flushScheduled = false;
 
-  if (!isWdListPath(location.pathname)) {
+  if (!shouldFilterCardsOnPath(location.pathname)) {
     return;
   }
 
@@ -649,22 +657,32 @@ function handleDetailMode(detailJobId: string): void {
     return;
   }
 
-  const root = findDetailRoot();
-  const heading = root.querySelector<HTMLElement>('h1, h2, [role="heading"], strong');
-  const title = heading?.textContent?.trim() ?? document.title;
+  const matchedRule = settingsCache.rules.find((rule) => {
+    if (!rule.enabled) {
+      return false;
+    }
 
-  const candidate: JobCandidate = {
-    anchor: document.createElement('a'),
-    cardEl: root,
-    url: location.href,
-    jobId: detailJobId,
-    title,
-    company: null
-  };
+    const refs = rule.jobRefs.map((ref) => ref.trim()).filter(Boolean);
+    if (refs.length === 0) {
+      return false;
+    }
 
-  const matched = matchAnyRule(candidate, settingsCache.rules);
-  if (matched.matched) {
-    insertDetailBanner(matched.ruleId);
+    return refs.some((ref) => {
+      if (/^\d+$/.test(ref)) {
+        return ref === detailJobId;
+      }
+
+      const refJobId = extractJobId(ref);
+      if (refJobId) {
+        return refJobId === detailJobId;
+      }
+
+      return ref.includes(`/wd/${detailJobId}`);
+    });
+  });
+
+  if (matchedRule) {
+    insertDetailBanner(matchedRule.id);
   }
 }
 
