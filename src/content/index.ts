@@ -466,7 +466,7 @@ function ensureQuickHideCompanyButton(candidate: JobCandidate): void {
 
   ensureCardPositioning(cardEl);
   const group = ensureCompanyButtonGroup(cardEl);
-  const button = buildQuickHideButton('이 회사 숨기기', 'rgba(17,24,39,0.85)');
+  const button = buildQuickHideButton('이 회사 숨기기', 'rgba(123,30,58,0.85)');
   button.setAttribute(QUICK_HIDE_COMPANY_BUTTON_ATTR, '1');
 
   button.addEventListener('click', (event) => {
@@ -493,14 +493,14 @@ function resolveCompanyHideTarget(cardEl: HTMLElement): HTMLElement {
   let cursor: HTMLElement | null = cardEl;
   let depth = 0;
   while (cursor && depth < 8) {
-    const parent = cursor.parentElement;
+    const parent:HTMLElement | null = cursor.parentElement;
     if (!parent) {
       break;
     }
 
     const siblingItems: HTMLElement[] = [];
     // DOM typing can degrade to any in some environments; guarded by instance checks below.
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+     
     let child: Element | null = parent.firstElementChild;
     while (child) {
       if (child instanceof HTMLElement && child.querySelector(companySelector)) {
@@ -740,6 +740,12 @@ function observeListMode(): void {
   const target = document.querySelector('main') ?? document.body;
 
   enqueueNode(target);
+  const rescanTimers = [300, 1200, 2500].map((delay) =>
+    window.setTimeout(() => {
+      const nextTarget = document.querySelector('main') ?? document.body;
+      enqueueNode(nextTarget);
+    }, delay)
+  );
 
   observer = new MutationObserver((mutations) => {
     for (const mutation of mutations) {
@@ -759,6 +765,7 @@ function observeListMode(): void {
       observer.disconnect();
       observer = null;
     }
+    rescanTimers.forEach((timer) => window.clearTimeout(timer));
   });
 }
 
@@ -937,6 +944,25 @@ function bindGlobalEvents(): void {
 
   window.addEventListener('popstate', () => {
     maybeRestartForPathChange('popstate');
+  });
+
+  window.addEventListener('pageshow', () => {
+    maybeRestartForPathChange('pageshow');
+    if (shouldFilterCardsOnPath(location.pathname)) {
+      const target = document.querySelector('main') ?? document.body;
+      enqueueNode(target);
+    }
+  });
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible') {
+      return;
+    }
+    maybeRestartForPathChange('visibility');
+    if (shouldFilterCardsOnPath(location.pathname)) {
+      const target = document.querySelector('main') ?? document.body;
+      enqueueNode(target);
+    }
   });
 
   chrome.storage.onChanged.addListener((changes, areaName) => {
