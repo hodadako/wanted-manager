@@ -219,7 +219,7 @@ function showQuickToast(message: string): void {
 async function addQuickHideRuleAndApply(
   jobId: string,
   cardEl: HTMLElement,
-  meta: { title: string | null; company: string | null; url: string }
+  meta: { title: string | null; company: string | null; jobRole: string | null; url: string }
 ): Promise<void> {
   const exists = settingsCache.rules.some(
     (rule) => rule.enabled && rule.jobRefs.some((ref) => ref.trim() === jobId)
@@ -239,7 +239,7 @@ async function addQuickHideRuleAndApply(
       title: meta.title,
       company: meta.company,
       jobId,
-      jobRole: meta.title,
+      jobRole: meta.jobRole ?? meta.title,
       url: meta.url
     });
   }
@@ -256,7 +256,7 @@ function ensureCardPositioning(cardEl: HTMLElement): void {
 }
 
 function ensureQuickHideButton(candidate: JobCandidate): void {
-  const { cardEl, jobId, title, company, url } = candidate;
+  const { cardEl, jobId } = candidate;
   if (!jobId || cardEl.dataset.wantedHidden === '1') {
     return;
   }
@@ -295,12 +295,47 @@ function ensureQuickHideButton(candidate: JobCandidate): void {
   button.addEventListener('click', (event) => {
     event.preventDefault();
     event.stopPropagation();
-    void addQuickHideRuleAndApply(jobId, cardEl, { title, company, url }).then(() => {
+    const meta = resolveCandidateMeta(candidate);
+    void addQuickHideRuleAndApply(jobId, cardEl, {
+      title: meta.title,
+      company: meta.company,
+      jobRole: meta.jobRole,
+      url: meta.url
+    }).then(() => {
       showQuickToast(`공고 ${jobId} 숨김 규칙이 추가되었습니다.`);
     });
   });
 
   cardEl.appendChild(button);
+}
+
+function resolveCandidateMeta(candidate: JobCandidate): {
+  title: string | null;
+  company: string | null;
+  jobRole: string | null;
+  jobId: string | null;
+  url: string;
+} {
+  const { cardEl, title, company, jobId, url } = candidate;
+  const dataEl = cardEl.querySelector<HTMLElement>(
+    '[data-position-name], [data-company-name], [data-job-category]'
+  );
+
+  const positionName = dataEl?.getAttribute('data-position-name')?.trim() || null;
+  const companyName = dataEl?.getAttribute('data-company-name')?.trim() || null;
+  const jobCategory = dataEl?.getAttribute('data-job-category')?.trim() || null;
+
+  const resolvedTitle = positionName ?? title;
+  const resolvedCompany = companyName ?? company;
+  const resolvedJobRole = jobCategory ?? resolvedTitle;
+
+  return {
+    title: resolvedTitle,
+    company: resolvedCompany,
+    jobRole: resolvedJobRole,
+    jobId,
+    url
+  };
 }
 
 function flushPending(): void {
@@ -369,13 +404,23 @@ function flushPending(): void {
       companySuccess += 1;
     }
 
-    const candidate: JobCandidate = {
+    const baseCandidate: JobCandidate = {
       anchor,
       cardEl,
       url,
       jobId,
       title,
       company
+    };
+
+    const resolved = resolveCandidateMeta(baseCandidate);
+    const candidate: JobCandidate = {
+      anchor,
+      cardEl,
+      url: resolved.url,
+      jobId: resolved.jobId,
+      title: resolved.title,
+      company: resolved.company
     };
 
     ensureQuickHideButton(candidate);
@@ -389,11 +434,11 @@ function flushPending(): void {
       hiddenApplied += 1;
       lastHiddenCount += 1;
       pushHiddenItem({
-        title,
-        company,
-        jobId,
-        jobRole: title,
-        url
+        title: resolved.title,
+        company: resolved.company,
+        jobId: resolved.jobId,
+        jobRole: resolved.jobRole,
+        url: resolved.url
       });
     }
   }

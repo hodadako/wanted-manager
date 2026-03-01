@@ -26,7 +26,6 @@ export const JOB_LINK_SELECTORS = [
 ] as const;
 
 const MAX_CARD_FALLBACK_DEPTH = 8;
-const MAX_JOB_LINKS_IN_CARD = 6;
 const MAX_CARD_HEIGHT = 900;
 
 function normalizeWhitespace(value: string | null | undefined): string {
@@ -215,7 +214,7 @@ function hasReasonableCardScope(container: HTMLElement, anchor: HTMLAnchorElemen
   }
 
   const linkCount = container.querySelectorAll<HTMLAnchorElement>(JOB_LINK_SELECTORS.join(',')).length;
-  if (linkCount < 1 || linkCount > MAX_JOB_LINKS_IN_CARD) {
+  if (linkCount < 1) {
     return false;
   }
 
