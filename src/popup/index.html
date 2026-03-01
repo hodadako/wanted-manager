@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Wanted Manager</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app">
+      <header class="top">
+        <h1>Wanted Manager</h1>
+        <p id="hidden-count">현재 페이지에서 마지막으로 숨긴 개수: -</p>
+      </header>
+
+      <section class="toggles" aria-label="옵션">
+        <label class="toggle-row" for="detail-enabled">
+          <span>상세 페이지 옵션 (/wd/{id})</span>
+          <input id="detail-enabled" type="checkbox" />
+        </label>
+        <label class="toggle-row" for="debug-enabled">
+          <span>디버그 로그</span>
+          <input id="debug-enabled" type="checkbox" />
+        </label>
+      </section>
+
+      <section>
+        <h2>규칙 추가</h2>
+        <form id="rule-form">
+          <label for="company-keywords">회사명 키워드 (콤마 구분)</label>
+          <input id="company-keywords" name="companyKeywords" type="text" placeholder="예: 토스, 네이버" />
+
+          <label for="title-keywords">공고 제목 키워드 (콤마 구분)</label>
+          <input id="title-keywords" name="titleKeywords" type="text" placeholder="예: 프론트엔드, 시니어" />
+
+          <label for="job-refs">링크/ID (콤마 구분)</label>
+          <input id="job-refs" name="jobRefs" type="text" placeholder="예: 859, /wd/859" />
+
+          <label for="match-mode">매칭 방식</label>
+          <select id="match-mode" name="matchMode">
+            <option value="AND">AND</option>
+            <option value="OR">OR</option>
+          </select>
+
+          <label for="action-mode">동작</label>
+          <select id="action-mode" name="action">
+            <option value="remove">제거 (remove)</option>
+            <option value="hide">숨김 (hide)</option>
+          </select>
+
+          <button id="add-rule" type="submit">규칙 추가</button>
+        </form>
+      </section>
+
+      <section>
+        <h2>규칙 목록</h2>
+        <p id="rule-error" class="error" role="status" aria-live="polite"></p>
+        <div id="rule-list" class="rule-list"></div>
+      </section>
+    </main>
+
+    <script src="./popup.js"></script>
+  </body>
+</html>

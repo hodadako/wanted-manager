@@ -1,0 +1,169 @@
+:root {
+  color-scheme: light;
+}
+
+body {
+  margin: 0;
+  background: #f6f7fb;
+  color: #1f2937;
+  font-family: "Segoe UI", "Noto Sans KR", sans-serif;
+}
+
+.app {
+  width: 360px;
+  box-sizing: border-box;
+  padding: 14px;
+}
+
+h1,
+h2 {
+  margin: 0;
+}
+
+h1 {
+  font-size: 16px;
+}
+
+h2 {
+  margin-top: 14px;
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+
+.top p {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: #4b5563;
+}
+
+.toggles {
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.toggle-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+}
+
+.toggle-row + .toggle-row {
+  margin-top: 8px;
+}
+
+#rule-form {
+  display: grid;
+  gap: 6px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 10px;
+}
+
+label {
+  font-size: 12px;
+  color: #374151;
+}
+
+input,
+select,
+button {
+  font: inherit;
+}
+
+input,
+select {
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 12px;
+  background: #fff;
+}
+
+button {
+  margin-top: 4px;
+  border: 0;
+  border-radius: 6px;
+  padding: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #ffffff;
+  background: #111827;
+  cursor: pointer;
+}
+
+.rule-list {
+  display: grid;
+  gap: 8px;
+}
+
+.rule-item {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.rule-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.rule-title {
+  font-size: 12px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.rule-meta {
+  margin-top: 6px;
+  font-size: 11px;
+  color: #4b5563;
+  line-height: 1.4;
+}
+
+.rule-actions {
+  margin-top: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.delete-btn {
+  background: #b91c1c;
+  font-size: 11px;
+  padding: 6px 8px;
+}
+
+.badge {
+  display: inline-block;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  color: #0f172a;
+  background: #e2e8f0;
+}
+
+.badge.remove {
+  background: #fee2e2;
+  color: #7f1d1d;
+}
+
+.badge.hide {
+  background: #dbeafe;
+  color: #1e3a8a;
+}
+
+.error {
+  margin: 0 0 8px;
+  min-height: 14px;
+  color: #b91c1c;
+  font-size: 11px;
+}

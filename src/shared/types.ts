@@ -1,0 +1,48 @@
+export type RuleMatchMode = 'AND' | 'OR';
+
+export type HideMode = 'remove' | 'hide';
+
+export type PageMode = 'wdlist' | 'detail' | 'other';
+
+export interface HideRule {
+  id: string;
+  enabled: boolean;
+  name?: string;
+  companyKeywords: string[];
+  titleKeywords: string[];
+  jobRefs: string[];
+  matchMode: RuleMatchMode;
+  action: HideMode;
+}
+
+export interface Settings {
+  rules: HideRule[];
+  detailPageEnabled: boolean;
+  debug: boolean;
+}
+
+export interface JobCandidate {
+  anchor: HTMLAnchorElement;
+  cardEl: HTMLElement;
+  url: string;
+  jobId: string | null;
+  title: string | null;
+  company: string | null;
+}
+
+export interface GetLastHiddenCountRequest {
+  type: 'GET_LAST_HIDDEN_COUNT';
+}
+
+export interface GetLastHiddenCountResponse {
+  lastHiddenCount: number;
+  route: string;
+}
+
+export type RuntimeRequest = GetLastHiddenCountRequest;
+
+export interface RuleMatchResult {
+  matched: boolean;
+  action: HideMode | null;
+  ruleId?: string;
+}

@@ -1,0 +1,18 @@
+{
+  "manifest_version": 3,
+  "name": "Wanted Manager",
+  "version": "0.1.0",
+  "description": "원티드에서 조건에 맞는 공고를 내 화면에서만 숨기거나 제거해 관리하는 확장 프로그램입니다.",
+  "permissions": ["storage"],
+  "host_permissions": ["https://www.wanted.co.kr/*"],
+  "action": {
+    "default_popup": "dist/popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.wanted.co.kr/*"],
+      "js": ["dist/content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
