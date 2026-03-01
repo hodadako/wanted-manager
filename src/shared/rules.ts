@@ -68,7 +68,10 @@ export function matchRule(candidate: JobCandidate, rule: HideRule): boolean {
 
   const companyKeywords = rule.companyKeywords.map(normalizeText).filter(Boolean);
   if (companyKeywords.length > 0) {
-    configuredChecks.push(keywordMatch(candidate.company, companyKeywords));
+    const companyMatched =
+      keywordMatch(candidate.company, companyKeywords) ||
+      keywordMatch(candidate.cardEl.textContent, companyKeywords);
+    configuredChecks.push(companyMatched);
   }
 
   const titleKeywords = rule.titleKeywords.map(normalizeText).filter(Boolean);

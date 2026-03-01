@@ -8,6 +8,10 @@ export const DEFAULT_SETTINGS: Settings = {
   debug: false
 };
 
+function hasRuntimeError(): string | null {
+  return chrome.runtime.lastError?.message ?? null;
+}
+
 function mergeWithDefaults(input?: Partial<Settings>): Settings {
   const rules = input?.rules;
   return {
@@ -20,8 +24,17 @@ function mergeWithDefaults(input?: Partial<Settings>): Settings {
 export function getSettings(): Promise<Settings> {
   return new Promise((resolve) => {
     chrome.storage.sync.get([STORAGE_KEY], (result) => {
-      const maybeSettings = result[STORAGE_KEY] as Partial<Settings> | undefined;
-      resolve(mergeWithDefaults(maybeSettings));
+      const syncError = hasRuntimeError();
+      if (!syncError) {
+        const maybeSettings = result[STORAGE_KEY] as Partial<Settings> | undefined;
+        resolve(mergeWithDefaults(maybeSettings));
+        return;
+      }
+
+      chrome.storage.local.get([STORAGE_KEY], (localResult) => {
+        const maybeLocalSettings = localResult[STORAGE_KEY] as Partial<Settings> | undefined;
+        resolve(mergeWithDefaults(maybeLocalSettings));
+      });
     });
   });
 }
@@ -29,7 +42,17 @@ export function getSettings(): Promise<Settings> {
 export function saveSettings(next: Settings): Promise<void> {
   return new Promise((resolve) => {
     chrome.storage.sync.set({ [STORAGE_KEY]: next }, () => {
-      resolve();
+      const syncError = hasRuntimeError();
+      if (!syncError) {
+        chrome.storage.local.set({ [STORAGE_KEY]: next }, () => {
+          resolve();
+        });
+        return;
+      }
+
+      chrome.storage.local.set({ [STORAGE_KEY]: next }, () => {
+        resolve();
+      });
     });
   });
 }

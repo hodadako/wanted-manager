@@ -30,7 +30,6 @@ declare global {
 
 const NAV_EVENT_NAME = 'wanted-hider:navigation';
 const DETAIL_BANNER_ID = 'wanted-hider-detail-banner';
-const MAX_ANCHORS_PER_FLUSH = 500;
 const QUICK_HIDE_BUTTON_ATTR = 'data-wanted-quick-hide-btn';
 const QUICK_HIDE_RULE_PREFIX = 'quick-hide-';
 
@@ -323,7 +322,7 @@ function flushPending(): void {
     collectJobAnchors(node).forEach((anchor) => anchorSet.add(anchor));
   });
 
-  const anchors = Array.from(anchorSet).slice(0, MAX_ANCHORS_PER_FLUSH);
+  const anchors = Array.from(anchorSet);
 
   let foundLinks = 0;
   let cardSuccess = 0;

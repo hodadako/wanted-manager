@@ -1,8 +1,7 @@
 import { extractJobId } from '../shared/selectors';
-import { getSettings, saveSettings, upsertRule } from '../shared/storage';
+import { deleteRule, getSettings, saveSettings, toggleRule, upsertRule } from '../shared/storage';
 import type {
   GetPageHiddenItemsResponse,
-  GetLastHiddenCountResponse,
   HiddenJobItem,
   HideRule,
   RuleMatchMode,
@@ -10,10 +9,8 @@ import type {
   Settings
 } from '../shared/types';
 
-const hiddenCountEl = document.getElementById('hidden-count') as HTMLParagraphElement;
 const hiddenJobListEl = document.getElementById('hidden-job-list') as HTMLDivElement;
-const detailEnabledEl = document.getElementById('detail-enabled') as HTMLInputElement;
-const debugEnabledEl = document.getElementById('debug-enabled') as HTMLInputElement;
+const ruleListEl = document.getElementById('rule-list') as HTMLDivElement;
 const formEl = document.getElementById('rule-form') as HTMLFormElement;
 const companyInputEl = document.getElementById('company-keywords') as HTMLInputElement;
 const titleInputEl = document.getElementById('title-keywords') as HTMLInputElement;
@@ -23,6 +20,7 @@ const ruleErrorEl = document.getElementById('rule-error') as HTMLParagraphElemen
 
 let settingsState: Settings;
 let activeTabId: number | null = null;
+const QUICK_HIDE_RULE_PREFIX = 'quick-hide-';
 
 function safeText(value: string | null | undefined): string {
   const text = value?.trim();
@@ -44,10 +42,84 @@ function genRuleId(): string {
   return `rule_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 }
 
+function isQuickHideRule(rule: HideRule): boolean {
+  return rule.id.startsWith(QUICK_HIDE_RULE_PREFIX);
+}
+
+function summarizeRule(rule: HideRule): string {
+  const sections: string[] = [];
+  if (rule.companyKeywords.length > 0) {
+    sections.push(`회사(${rule.companyKeywords.join(', ')})`);
+  }
+  if (rule.titleKeywords.length > 0) {
+    sections.push(`제목(${rule.titleKeywords.join(', ')})`);
+  }
+  if (rule.jobRefs.length > 0) {
+    sections.push(`ID/링크(${rule.jobRefs.join(', ')})`);
+  }
+
+  return `${rule.matchMode} / ${sections.join(' + ') || '조건 없음'}`;
+}
+
+function renderRules(settings: Settings): void {
+  ruleListEl.innerHTML = '';
+
+  const visibleRules = settings.rules.filter((rule) => !isQuickHideRule(rule));
+  if (visibleRules.length === 0) {
+    const empty = document.createElement('p');
+    empty.className = 'rule-meta';
+    empty.textContent = '설정한 규칙이 없습니다.';
+    ruleListEl.appendChild(empty);
+    return;
+  }
+
+  visibleRules.forEach((rule) => {
+    const item = document.createElement('article');
+    item.className = 'rule-item';
+    item.dataset.ruleId = rule.id;
+
+    const title = document.createElement('p');
+    title.className = 'rule-title';
+    title.textContent = rule.name?.trim() || `규칙 ${rule.id.slice(0, 8)}`;
+
+    const meta = document.createElement('p');
+    meta.className = 'rule-meta';
+    meta.textContent = summarizeRule(rule);
+
+    const actions = document.createElement('div');
+    actions.className = 'rule-actions';
+
+    const toggleLabel = document.createElement('label');
+    toggleLabel.className = 'toggle-row';
+    toggleLabel.textContent = '활성';
+
+    const toggleInput = document.createElement('input');
+    toggleInput.type = 'checkbox';
+    toggleInput.checked = rule.enabled;
+    toggleInput.dataset.action = 'toggle-rule';
+    toggleInput.dataset.ruleId = rule.id;
+    toggleLabel.appendChild(toggleInput);
+
+    const deleteBtn = document.createElement('button');
+    deleteBtn.type = 'button';
+    deleteBtn.className = 'delete-btn';
+    deleteBtn.textContent = '삭제';
+    deleteBtn.dataset.action = 'delete-rule';
+    deleteBtn.dataset.ruleId = rule.id;
+
+    actions.appendChild(toggleLabel);
+    actions.appendChild(deleteBtn);
+
+    item.appendChild(title);
+    item.appendChild(meta);
+    item.appendChild(actions);
+    ruleListEl.appendChild(item);
+  });
+}
+
 function renderSettings(settings: Settings): void {
   settingsState = settings;
-  detailEnabledEl.checked = settings.detailPageEnabled;
-  debugEnabledEl.checked = settings.debug;
+  renderRules(settings);
 }
 
 function queryActiveTab(): Promise<chrome.tabs.Tab | null> {
@@ -131,22 +203,9 @@ async function refreshHiddenData(): Promise<void> {
   activeTabId = activeTab?.id ?? null;
 
   if (!activeTabId) {
-    hiddenCountEl.textContent = '현재 페이지에서 마지막으로 숨긴 개수: -';
     renderHiddenJobs([]);
     return;
   }
-
-  const countResponse = await sendMessage<GetLastHiddenCountResponse>(activeTabId, {
-    type: 'GET_LAST_HIDDEN_COUNT'
-  });
-
-  if (!countResponse) {
-    hiddenCountEl.textContent = '현재 페이지에서 마지막으로 숨긴 개수: -';
-    renderHiddenJobs([]);
-    return;
-  }
-
-  hiddenCountEl.textContent = `현재 페이지에서 마지막으로 숨긴 개수: ${countResponse.lastHiddenCount}`;
 
   const hiddenJobsResponse = await sendMessage<GetPageHiddenItemsResponse>(activeTabId, {
     type: 'GET_PAGE_HIDDEN_ITEMS'
@@ -197,18 +256,23 @@ function removeJobIdFromRules(settings: Settings, jobId: string): Settings {
 }
 
 async function restoreHiddenJob(jobId: string): Promise<void> {
-  const next = removeJobIdFromRules(settingsState, jobId);
-  await saveSettings(next);
-  renderSettings(next);
+  try {
+    ruleErrorEl.textContent = '';
+    const next = removeJobIdFromRules(settingsState, jobId);
+    await saveSettings(next);
+    renderSettings(next);
 
-  if (activeTabId) {
-    await sendMessage<{ restoredCount: number }>(activeTabId, {
-      type: 'UNHIDE_JOB',
-      jobId
-    });
+    if (activeTabId) {
+      await sendMessage<{ restoredCount: number }>(activeTabId, {
+        type: 'UNHIDE_JOB',
+        jobId
+      });
+    }
+
+    await refreshHiddenData();
+  } catch {
+    ruleErrorEl.textContent = '다시 활성화 처리 중 오류가 발생했습니다.';
   }
-
-  await refreshHiddenData();
 }
 
 async function handleAddRule(event: SubmitEvent): Promise<void> {
@@ -234,24 +298,43 @@ async function handleAddRule(event: SubmitEvent): Promise<void> {
     action: 'hide'
   };
 
-  const next = await upsertRule(rule);
-  renderSettings(next);
-  await refreshHiddenData();
+  try {
+    const next = await upsertRule(rule);
+    renderSettings(next);
+    await refreshHiddenData();
 
-  formEl.reset();
-  matchModeEl.value = 'AND';
+    formEl.reset();
+    matchModeEl.value = 'AND';
+  } catch {
+    ruleErrorEl.textContent = '규칙 저장 중 오류가 발생했습니다.';
+  }
 }
 
-async function handleGlobalToggle(): Promise<void> {
-  const next: Settings = {
-    ...settingsState,
-    detailPageEnabled: detailEnabledEl.checked,
-    debug: debugEnabledEl.checked
-  };
+async function handleRuleListInteraction(event: Event): Promise<void> {
+  const target = event.target as HTMLElement;
+  const ruleId = target.dataset.ruleId;
+  const action = target.dataset.action;
+  if (!ruleId || !action) {
+    return;
+  }
 
-  await saveSettings(next);
-  renderSettings(next);
-  await refreshHiddenData();
+  try {
+    ruleErrorEl.textContent = '';
+    if (action === 'delete-rule') {
+      const next = await deleteRule(ruleId);
+      renderSettings(next);
+      await refreshHiddenData();
+      return;
+    }
+
+    if (action === 'toggle-rule' && target instanceof HTMLInputElement) {
+      const next = await toggleRule(ruleId, target.checked);
+      renderSettings(next);
+      await refreshHiddenData();
+    }
+  } catch {
+    ruleErrorEl.textContent = '규칙 처리 중 오류가 발생했습니다.';
+  }
 }
 
 function bindEvents(): void {
@@ -270,12 +353,12 @@ function bindEvents(): void {
     void restoreHiddenJob(jobId);
   });
 
-  detailEnabledEl.addEventListener('change', () => {
-    void handleGlobalToggle();
+  ruleListEl.addEventListener('click', (event) => {
+    void handleRuleListInteraction(event);
   });
 
-  debugEnabledEl.addEventListener('change', () => {
-    void handleGlobalToggle();
+  ruleListEl.addEventListener('change', (event) => {
+    void handleRuleListInteraction(event);
   });
 }
 
