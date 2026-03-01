@@ -37,6 +37,7 @@ const DETAIL_BANNER_ID = 'wanted-hider-detail-banner';
 const QUICK_HIDE_BUTTON_ATTR = 'data-wanted-quick-hide-job-btn';
 const QUICK_HIDE_COMPANY_BUTTON_ATTR = 'data-wanted-quick-hide-company-btn';
 const QUICK_HIDE_BUTTON_GROUP_ATTR = 'data-wanted-quick-hide-group';
+const QUICK_HIDE_COMPANY_BUTTON_GROUP_ATTR = 'data-wanted-quick-hide-company-group';
 const QUICK_HIDE_RULE_PREFIX = 'quick-hide-';
 const QUICK_HIDE_COMPANY_RULE_PREFIX = 'quick-hide-company-';
 
@@ -353,7 +354,31 @@ function ensureButtonGroup(cardEl: HTMLElement): HTMLDivElement {
   return group;
 }
 
-function buildQuickHideButton(label: string): HTMLButtonElement {
+function ensureCompanyButtonGroup(cardEl: HTMLElement): HTMLDivElement {
+  const existing = cardEl.querySelector<HTMLDivElement>(
+    `div[${QUICK_HIDE_COMPANY_BUTTON_GROUP_ATTR}="1"]`
+  );
+  if (existing) {
+    return existing;
+  }
+
+  const group = document.createElement('div');
+  group.setAttribute(QUICK_HIDE_COMPANY_BUTTON_GROUP_ATTR, '1');
+  group.style.cssText = [
+    'position: absolute',
+    'top: 8px',
+    'left: 8px',
+    'z-index: 0',
+    'display: flex',
+    'flex-direction: column',
+    'gap: 4px',
+    'align-items: flex-start'
+  ].join(';');
+  cardEl.appendChild(group);
+  return group;
+}
+
+function buildQuickHideButton(label: string, background: string): HTMLButtonElement {
   const button = document.createElement('button');
   button.type = 'button';
   button.textContent = label;
@@ -361,7 +386,7 @@ function buildQuickHideButton(label: string): HTMLButtonElement {
     'border: 0',
     'border-radius: 8px',
     'padding: 4px 8px',
-    'background: rgba(17,24,39,0.85)',
+    `background: ${background}`,
     'color: #fff',
     'font-size: 11px',
     'font-weight: 700',
@@ -402,7 +427,7 @@ function ensureQuickHideButton(candidate: JobCandidate): void {
 
   ensureCardPositioning(cardEl);
   const group = ensureButtonGroup(cardEl);
-  const button = buildQuickHideButton('이 공고 숨기기');
+  const button = buildQuickHideButton('이 공고 숨기기', 'rgba(17,24,39,0.85)');
   button.setAttribute(QUICK_HIDE_BUTTON_ATTR, '1');
 
   button.addEventListener('click', (event) => {
@@ -440,8 +465,8 @@ function ensureQuickHideCompanyButton(candidate: JobCandidate): void {
   }
 
   ensureCardPositioning(cardEl);
-  const group = ensureButtonGroup(cardEl);
-  const button = buildQuickHideButton('이 회사 숨기기');
+  const group = ensureCompanyButtonGroup(cardEl);
+  const button = buildQuickHideButton('이 회사 숨기기', 'rgba(17,24,39,0.85)');
   button.setAttribute(QUICK_HIDE_COMPANY_BUTTON_ATTR, '1');
 
   button.addEventListener('click', (event) => {
