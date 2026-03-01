@@ -1,5 +1,6 @@
 import { matchAnyRule } from '../shared/rules';
 import {
+  JOB_LINK_SELECTORS,
   collectJobAnchors,
   extractCompany,
   extractJobId,
@@ -9,9 +10,10 @@ import {
   isWdListPath,
   normalizeJobUrl
 } from '../shared/selectors';
-import { DEFAULT_SETTINGS, STORAGE_KEY, getSettings } from '../shared/storage';
+import { DEFAULT_SETTINGS, STORAGE_KEY, getSettings, saveSettings } from '../shared/storage';
 import type {
   GetLastHiddenCountResponse,
+  HideRule,
   JobCandidate,
   RuntimeRequest,
   Settings
@@ -20,12 +22,15 @@ import type {
 declare global {
   interface Window {
     __wantedHiderHistoryPatched?: boolean;
+    __wantedHiderPagePatchInjected?: boolean;
   }
 }
 
 const NAV_EVENT_NAME = 'wanted-hider:navigation';
 const DETAIL_BANNER_ID = 'wanted-hider-detail-banner';
 const MAX_ANCHORS_PER_FLUSH = 500;
+const QUICK_HIDE_BUTTON_ATTR = 'data-wanted-quick-hide-btn';
+const QUICK_HIDE_RULE_PREFIX = 'quick-hide-';
 
 let cleanupFns: Array<() => void> = [];
 let observer: MutationObserver | null = null;
@@ -37,6 +42,7 @@ let lastHiddenCount = 0;
 let currentRouteKey = '';
 let settingsCache: Settings = { ...DEFAULT_SETTINGS };
 let routeSequence = 0;
+let lastSeenPathname = location.pathname;
 
 function debugLog(message: string, payload?: unknown): void {
   if (!settingsCache.debug) {
@@ -80,6 +86,20 @@ function cleanupRouteMode(): void {
   }
 }
 
+function getRouteKey(): string {
+  return location.pathname;
+}
+
+function maybeRestartForPathChange(trigger: string): void {
+  const nextPath = getRouteKey();
+  if (nextPath === lastSeenPathname) {
+    return;
+  }
+
+  lastSeenPathname = nextPath;
+  void restartForRoute(trigger);
+}
+
 function scheduleFlush(): void {
   if (flushScheduled) {
     return;
@@ -119,6 +139,113 @@ function applyAction(cardEl: HTMLElement, action: 'remove' | 'hide'): boolean {
   cardEl.style.display = 'none';
   cardEl.dataset.wantedHidden = '1';
   return true;
+}
+
+function createQuickHideRule(jobId: string): HideRule {
+  return {
+    id: `${QUICK_HIDE_RULE_PREFIX}${jobId}`,
+    enabled: true,
+    name: `빠른 숨김: ${jobId}`,
+    companyKeywords: [],
+    titleKeywords: [],
+    jobRefs: [jobId],
+    matchMode: 'OR',
+    action: 'hide'
+  };
+}
+
+function showQuickToast(message: string): void {
+  const toast = document.createElement('div');
+  toast.textContent = message;
+  toast.style.cssText = [
+    'position: fixed',
+    'right: 16px',
+    'bottom: 16px',
+    'z-index: 100000',
+    'padding: 8px 10px',
+    'border-radius: 8px',
+    'background: rgba(17, 24, 39, 0.92)',
+    'color: #fff',
+    'font-size: 12px',
+    'font-weight: 600'
+  ].join(';');
+  document.body.appendChild(toast);
+  window.setTimeout(() => toast.remove(), 1500);
+}
+
+async function addQuickHideRuleAndApply(jobId: string, cardEl: HTMLElement): Promise<void> {
+  const exists = settingsCache.rules.some(
+    (rule) => rule.enabled && rule.jobRefs.some((ref) => ref.trim() === jobId)
+  );
+  if (!exists) {
+    const next: Settings = {
+      ...settingsCache,
+      rules: [...settingsCache.rules, createQuickHideRule(jobId)]
+    };
+    await saveSettings(next);
+    settingsCache = next;
+  }
+
+  if (applyAction(cardEl, 'hide')) {
+    lastHiddenCount += 1;
+  }
+}
+
+function ensureCardPositioning(cardEl: HTMLElement): void {
+  if (!cardEl.dataset.wantedQuickHidePosFixed) {
+    const computed = window.getComputedStyle(cardEl);
+    if (computed.position === 'static') {
+      cardEl.style.position = 'relative';
+      cardEl.dataset.wantedQuickHidePosFixed = '1';
+    }
+  }
+}
+
+function ensureQuickHideButton(cardEl: HTMLElement, jobId: string | null): void {
+  if (!jobId || cardEl.dataset.wantedHidden === '1') {
+    return;
+  }
+
+  const existing = cardEl.querySelector<HTMLButtonElement>(`button[${QUICK_HIDE_BUTTON_ATTR}="1"]`);
+  if (existing) {
+    return;
+  }
+
+  const hasJobLink = cardEl.querySelector<HTMLAnchorElement>(JOB_LINK_SELECTORS.join(','));
+  if (!hasJobLink) {
+    return;
+  }
+
+  ensureCardPositioning(cardEl);
+
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.setAttribute(QUICK_HIDE_BUTTON_ATTR, '1');
+  button.textContent = '이 공고 숨기기';
+  button.style.cssText = [
+    'position: absolute',
+    'top: 8px',
+    'right: 8px',
+    'z-index: 1000',
+    'border: 0',
+    'border-radius: 8px',
+    'padding: 4px 8px',
+    'background: rgba(17,24,39,0.85)',
+    'color: #fff',
+    'font-size: 11px',
+    'font-weight: 700',
+    'cursor: pointer'
+  ].join(';');
+
+  button.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    void addQuickHideRuleAndApply(jobId, cardEl).then(() => {
+      showQuickToast(`공고 ${jobId} 숨김 규칙이 추가되었습니다.`);
+    });
+  });
+
+  cardEl.appendChild(button);
 }
 
 function flushPending(): void {
@@ -195,6 +322,8 @@ function flushPending(): void {
       title,
       company
     };
+
+    ensureQuickHideButton(cardEl, jobId);
 
     const matched = matchAnyRule(candidate, settingsCache.rules);
     if (!matched.matched || !matched.action) {
@@ -356,6 +485,39 @@ function patchHistoryOnce(): void {
   };
 }
 
+function injectPageHistoryPatchOnce(): void {
+  if (window.__wantedHiderPagePatchInjected) {
+    return;
+  }
+
+  window.__wantedHiderPagePatchInjected = true;
+
+  const script = document.createElement('script');
+  script.dataset.wantedHiderPatch = '1';
+  script.textContent = `
+    (() => {
+      if (window.__wantedHiderPageHistoryPatched) return;
+      window.__wantedHiderPageHistoryPatched = true;
+      const eventName = ${JSON.stringify(NAV_EVENT_NAME)};
+      const rawPush = history.pushState.bind(history);
+      const rawReplace = history.replaceState.bind(history);
+      history.pushState = function(...args) {
+        const result = rawPush(...args);
+        window.dispatchEvent(new CustomEvent(eventName));
+        return result;
+      };
+      history.replaceState = function(...args) {
+        const result = rawReplace(...args);
+        window.dispatchEvent(new CustomEvent(eventName));
+        return result;
+      };
+    })();
+  `;
+
+  (document.head ?? document.documentElement).appendChild(script);
+  script.remove();
+}
+
 async function restartForRoute(trigger: string): Promise<void> {
   const seq = ++routeSequence;
   cleanupRouteMode();
@@ -366,15 +528,15 @@ async function restartForRoute(trigger: string): Promise<void> {
     return;
   }
 
-  currentRouteKey = location.pathname;
+  currentRouteKey = getRouteKey();
   debugLog(`route restart (${trigger})`, { route: currentRouteKey });
 
-  if (isWdListPath(location.pathname)) {
+  if (isWdListPath(currentRouteKey)) {
     observeListMode();
     return;
   }
 
-  const detailInfo = isWdDetailPath(location.pathname);
+  const detailInfo = isWdDetailPath(currentRouteKey);
   if (detailInfo.matched && detailInfo.jobId) {
     handleDetailMode(detailInfo.jobId);
     return;
@@ -383,11 +545,11 @@ async function restartForRoute(trigger: string): Promise<void> {
 
 function bindGlobalEvents(): void {
   window.addEventListener(NAV_EVENT_NAME, () => {
-    void restartForRoute('history');
+    maybeRestartForPathChange('history');
   });
 
   window.addEventListener('popstate', () => {
-    void restartForRoute('popstate');
+    maybeRestartForPathChange('popstate');
   });
 
   chrome.storage.onChanged.addListener((changes, areaName) => {
@@ -416,11 +578,17 @@ function bindGlobalEvents(): void {
 
     sendResponse(response);
   });
+
+  window.setInterval(() => {
+    maybeRestartForPathChange('poll');
+  }, 500);
 }
 
 async function bootstrap(): Promise<void> {
   patchHistoryOnce();
+  injectPageHistoryPatchOnce();
   bindGlobalEvents();
+  lastSeenPathname = getRouteKey();
   await restartForRoute('bootstrap');
 }
 

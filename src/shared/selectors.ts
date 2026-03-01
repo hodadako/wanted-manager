@@ -26,6 +26,8 @@ export const JOB_LINK_SELECTORS = [
 ] as const;
 
 const MAX_CARD_FALLBACK_DEPTH = 8;
+const MAX_JOB_LINKS_IN_CARD = 6;
+const MAX_CARD_HEIGHT = 900;
 
 function normalizeWhitespace(value: string | null | undefined): string {
   if (!value) {
@@ -53,7 +55,7 @@ function hasVisibleRect(el: Element): boolean {
 }
 
 export function isWdListPath(pathname: string): boolean {
-  return pathname === '/wdlist' || pathname.startsWith('/wdlist');
+  return pathname === '/' || pathname === '/wdlist' || pathname.startsWith('/wdlist');
 }
 
 export function isWdDetailPath(pathname: string): { matched: boolean; jobId: string | null } {
@@ -171,6 +173,29 @@ export function isCardLike(el: HTMLElement): boolean {
   return signals >= 2;
 }
 
+function hasReasonableCardScope(container: HTMLElement, anchor: HTMLAnchorElement): boolean {
+  if (!container.contains(anchor)) {
+    return false;
+  }
+
+  const rect = container.getBoundingClientRect();
+  if (rect.height > MAX_CARD_HEIGHT) {
+    return false;
+  }
+
+  const linkCount = container.querySelectorAll<HTMLAnchorElement>(JOB_LINK_SELECTORS.join(',')).length;
+  if (linkCount < 1 || linkCount > MAX_JOB_LINKS_IN_CARD) {
+    return false;
+  }
+
+  const nestedCardCount = container.querySelectorAll('article, [role="listitem"], li').length;
+  if (nestedCardCount >= 3) {
+    return false;
+  }
+
+  return true;
+}
+
 export function findCardContainer(anchor: HTMLAnchorElement): HTMLElement | null {
   if (!anchor.isConnected || !hasVisibleRect(anchor)) {
     return null;
@@ -178,7 +203,11 @@ export function findCardContainer(anchor: HTMLAnchorElement): HTMLElement | null
 
   for (const selector of CARD_CONTAINER_CANDIDATES) {
     const matched = anchor.closest(selector);
-    if (matched instanceof HTMLElement && isCardLike(matched)) {
+    if (
+      matched instanceof HTMLElement &&
+      isCardLike(matched) &&
+      hasReasonableCardScope(matched, anchor)
+    ) {
       matched.dataset.wantedCard = '1';
       return matched;
     }
@@ -199,7 +228,7 @@ export function findCardContainer(anchor: HTMLAnchorElement): HTMLElement | null
       continue;
     }
 
-    if (isCardLike(cursor)) {
+    if (isCardLike(cursor) && hasReasonableCardScope(cursor, anchor)) {
       cursor.dataset.wantedCard = '1';
       return cursor;
     }
