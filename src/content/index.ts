@@ -34,8 +34,11 @@ declare global {
 
 const NAV_EVENT_NAME = 'wanted-hider:navigation';
 const DETAIL_BANNER_ID = 'wanted-hider-detail-banner';
-const QUICK_HIDE_BUTTON_ATTR = 'data-wanted-quick-hide-btn';
+const QUICK_HIDE_BUTTON_ATTR = 'data-wanted-quick-hide-job-btn';
+const QUICK_HIDE_COMPANY_BUTTON_ATTR = 'data-wanted-quick-hide-company-btn';
+const QUICK_HIDE_BUTTON_GROUP_ATTR = 'data-wanted-quick-hide-group';
 const QUICK_HIDE_RULE_PREFIX = 'quick-hide-';
+const QUICK_HIDE_COMPANY_RULE_PREFIX = 'quick-hide-company-';
 
 let cleanupFns: Array<() => void> = [];
 let observer: MutationObserver | null = null;
@@ -209,6 +212,32 @@ function createQuickHideRule(jobId: string): HideRule {
   };
 }
 
+function normalizeKeyword(value: string): string {
+  return value.replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+function createCompanyRuleId(company: string): string {
+  const normalized = normalizeKeyword(company);
+  const slug = normalized
+    .replace(/[^a-z0-9가-힣]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 32);
+  return `${QUICK_HIDE_COMPANY_RULE_PREFIX}${slug || 'company'}`;
+}
+
+function createQuickHideCompanyRule(company: string): HideRule {
+  return {
+    id: createCompanyRuleId(company),
+    enabled: true,
+    name: `빠른 숨김(회사): ${company}`,
+    companyKeywords: [company],
+    titleKeywords: [],
+    jobRefs: [],
+    matchMode: 'OR',
+    action: 'hide'
+  };
+}
+
 function showQuickToast(message: string): void {
   const toast = document.createElement('div');
   toast.textContent = message;
@@ -257,6 +286,41 @@ async function addQuickHideRuleAndApply(
   }
 }
 
+async function addQuickHideCompanyRuleAndApply(
+  company: string,
+  cardEl: HTMLElement,
+  meta: { title: string | null; company: string | null; jobRole: string | null; jobId: string | null; url: string }
+): Promise<void> {
+  const normalizedCompany = normalizeKeyword(company);
+  const exists = settingsCache.rules.some((rule) => {
+    if (!rule.enabled) {
+      return false;
+    }
+
+    return rule.companyKeywords.some((keyword) => normalizeKeyword(keyword) === normalizedCompany);
+  });
+
+  if (!exists) {
+    const next: Settings = {
+      ...settingsCache,
+      rules: [...settingsCache.rules, createQuickHideCompanyRule(company)]
+    };
+    await saveSettings(next);
+    settingsCache = next;
+  }
+
+  if (applyAction(cardEl, 'hide')) {
+    lastHiddenCount += 1;
+    pushHiddenItem({
+      title: meta.title,
+      company: meta.company ?? company,
+      jobId: meta.jobId,
+      jobRole: meta.jobRole ?? meta.title,
+      url: meta.url
+    });
+  }
+}
+
 function ensureCardPositioning(cardEl: HTMLElement): void {
   if (!cardEl.dataset.wantedQuickHidePosFixed) {
     const computed = window.getComputedStyle(cardEl);
@@ -265,6 +329,45 @@ function ensureCardPositioning(cardEl: HTMLElement): void {
       cardEl.dataset.wantedQuickHidePosFixed = '1';
     }
   }
+}
+
+function ensureButtonGroup(cardEl: HTMLElement): HTMLDivElement {
+  const existing = cardEl.querySelector<HTMLDivElement>(`div[${QUICK_HIDE_BUTTON_GROUP_ATTR}="1"]`);
+  if (existing) {
+    return existing;
+  }
+
+  const group = document.createElement('div');
+  group.setAttribute(QUICK_HIDE_BUTTON_GROUP_ATTR, '1');
+  group.style.cssText = [
+    'position: absolute',
+    'top: 8px',
+    'right: 8px',
+    'z-index: 0',
+    'display: flex',
+    'flex-direction: column',
+    'gap: 4px',
+    'align-items: flex-end'
+  ].join(';');
+  cardEl.appendChild(group);
+  return group;
+}
+
+function buildQuickHideButton(label: string): HTMLButtonElement {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.textContent = label;
+  button.style.cssText = [
+    'border: 0',
+    'border-radius: 8px',
+    'padding: 4px 8px',
+    'background: rgba(17,24,39,0.85)',
+    'color: #fff',
+    'font-size: 11px',
+    'font-weight: 700',
+    'cursor: pointer'
+  ].join(';');
+  return button;
 }
 
 function isQuickHideButtonTarget(cardEl: HTMLElement, jobId: string): boolean {
@@ -298,25 +401,9 @@ function ensureQuickHideButton(candidate: JobCandidate): void {
   }
 
   ensureCardPositioning(cardEl);
-
-  const button = document.createElement('button');
-  button.type = 'button';
+  const group = ensureButtonGroup(cardEl);
+  const button = buildQuickHideButton('이 공고 숨기기');
   button.setAttribute(QUICK_HIDE_BUTTON_ATTR, '1');
-  button.textContent = '이 공고 숨기기';
-  button.style.cssText = [
-    'position: absolute',
-    'top: 8px',
-    'right: 8px',
-    'z-index: 0',
-    'border: 0',
-    'border-radius: 8px',
-    'padding: 4px 8px',
-    'background: rgba(17,24,39,0.85)',
-    'color: #fff',
-    'font-size: 11px',
-    'font-weight: 700',
-    'cursor: pointer'
-  ].join(';');
 
   button.addEventListener('click', (event) => {
     event.preventDefault();
@@ -332,7 +419,47 @@ function ensureQuickHideButton(candidate: JobCandidate): void {
     });
   });
 
-  cardEl.appendChild(button);
+  group.appendChild(button);
+}
+
+function ensureQuickHideCompanyButton(candidate: JobCandidate): void {
+  const { cardEl, company, jobId } = candidate;
+  if (!company || cardEl.dataset.wantedHidden === '1') {
+    return;
+  }
+
+  if (!jobId || !isQuickHideButtonTarget(cardEl, jobId)) {
+    return;
+  }
+
+  const existing = cardEl.querySelector<HTMLButtonElement>(
+    `button[${QUICK_HIDE_COMPANY_BUTTON_ATTR}="1"]`
+  );
+  if (existing) {
+    return;
+  }
+
+  ensureCardPositioning(cardEl);
+  const group = ensureButtonGroup(cardEl);
+  const button = buildQuickHideButton('이 회사 숨기기');
+  button.setAttribute(QUICK_HIDE_COMPANY_BUTTON_ATTR, '1');
+
+  button.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const meta = resolveCandidateMeta(candidate);
+    void addQuickHideCompanyRuleAndApply(company, cardEl, {
+      title: meta.title,
+      company: meta.company,
+      jobRole: meta.jobRole,
+      jobId: meta.jobId,
+      url: meta.url
+    }).then(() => {
+      showQuickToast(`회사 ${company} 숨김 규칙이 추가되었습니다.`);
+    });
+  });
+
+  group.appendChild(button);
 }
 
 function resolveCompanyHideTarget(cardEl: HTMLElement): HTMLElement {
@@ -484,6 +611,7 @@ function flushPending(): void {
     };
 
     ensureQuickHideButton(candidate);
+    ensureQuickHideCompanyButton(candidate);
 
     const matched = matchAnyRule(candidate, settingsCache.rules);
     if (!matched.matched) {
