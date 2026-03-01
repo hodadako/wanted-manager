@@ -12,6 +12,19 @@ function hasRuntimeError(): string | null {
   return chrome.runtime.lastError?.message ?? null;
 }
 
+function choosePreferredSettings(syncSettings: Settings, localSettings: Settings): Settings {
+  const syncScore =
+    syncSettings.rules.length +
+    (syncSettings.detailPageEnabled ? 1 : 0) +
+    (syncSettings.debug ? 1 : 0);
+  const localScore =
+    localSettings.rules.length +
+    (localSettings.detailPageEnabled ? 1 : 0) +
+    (localSettings.debug ? 1 : 0);
+
+  return localScore > syncScore ? localSettings : syncSettings;
+}
+
 function mergeWithDefaults(input?: Partial<Settings>): Settings {
   const rules = input?.rules;
   return {
@@ -23,34 +36,37 @@ function mergeWithDefaults(input?: Partial<Settings>): Settings {
 
 export function getSettings(): Promise<Settings> {
   return new Promise((resolve) => {
-    chrome.storage.sync.get([STORAGE_KEY], (result) => {
-      const syncError = hasRuntimeError();
-      if (!syncError) {
-        const maybeSettings = result[STORAGE_KEY] as Partial<Settings> | undefined;
-        resolve(mergeWithDefaults(maybeSettings));
-        return;
-      }
+    chrome.storage.local.get([STORAGE_KEY], (localResult) => {
+      const localError = hasRuntimeError();
+      const localSettings = mergeWithDefaults(
+        localError ? undefined : (localResult[STORAGE_KEY] as Partial<Settings> | undefined)
+      );
 
-      chrome.storage.local.get([STORAGE_KEY], (localResult) => {
-        const maybeLocalSettings = localResult[STORAGE_KEY] as Partial<Settings> | undefined;
-        resolve(mergeWithDefaults(maybeLocalSettings));
+      chrome.storage.sync.get([STORAGE_KEY], (syncResult) => {
+        const syncError = hasRuntimeError();
+        if (syncError) {
+          resolve(localSettings);
+          return;
+        }
+
+        const syncSettings = mergeWithDefaults(syncResult[STORAGE_KEY] as Partial<Settings> | undefined);
+        resolve(choosePreferredSettings(syncSettings, localSettings));
       });
     });
   });
 }
 
 export function saveSettings(next: Settings): Promise<void> {
-  return new Promise((resolve) => {
-    chrome.storage.sync.set({ [STORAGE_KEY]: next }, () => {
-      const syncError = hasRuntimeError();
-      if (!syncError) {
-        chrome.storage.local.set({ [STORAGE_KEY]: next }, () => {
-          resolve();
-        });
+  return new Promise((resolve, reject) => {
+    chrome.storage.local.set({ [STORAGE_KEY]: next }, () => {
+      const localError = hasRuntimeError();
+      if (localError) {
+        reject(new Error(localError));
         return;
       }
 
-      chrome.storage.local.set({ [STORAGE_KEY]: next }, () => {
+      // sync is best-effort replication. local is used as primary persistence.
+      chrome.storage.sync.set({ [STORAGE_KEY]: next }, () => {
         resolve();
       });
     });
