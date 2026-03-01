@@ -787,7 +787,7 @@ function bindGlobalEvents(): void {
   });
 
   chrome.storage.onChanged.addListener((changes, areaName) => {
-    if (areaName !== 'sync' || !changes[STORAGE_KEY]) {
+    if ((areaName !== 'sync' && areaName !== 'local') || !changes[STORAGE_KEY]) {
       return;
     }
 
@@ -823,6 +823,12 @@ function bindGlobalEvents(): void {
     if (request?.type === 'UNHIDE_JOB') {
       const restoredCount = unhideJobOnPage(request.jobId);
       sendResponse({ restoredCount });
+      return;
+    }
+
+    if (request?.type === 'APPLY_RULES_NOW') {
+      void restartForRoute('manual_apply');
+      sendResponse({ ok: true });
     }
   });
 

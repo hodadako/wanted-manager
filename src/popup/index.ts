@@ -143,6 +143,16 @@ function sendMessage<T>(tabId: number, message: RuntimeRequest): Promise<T | nul
   });
 }
 
+async function triggerApplyRulesNow(): Promise<void> {
+  const activeTab = await queryActiveTab();
+  const tabId = activeTab?.id;
+  if (!tabId) {
+    return;
+  }
+
+  await sendMessage<{ ok: boolean }>(tabId, { type: 'APPLY_RULES_NOW' });
+}
+
 function renderHiddenJobs(items: HiddenJobItem[]): void {
   hiddenJobListEl.innerHTML = '';
 
@@ -268,6 +278,7 @@ async function restoreHiddenJob(jobId: string): Promise<void> {
         jobId
       });
     }
+    await triggerApplyRulesNow();
 
     await refreshHiddenData();
   } catch {
@@ -301,6 +312,7 @@ async function handleAddRule(event: SubmitEvent): Promise<void> {
   try {
     const next = await upsertRule(rule);
     renderSettings(next);
+    await triggerApplyRulesNow();
     await refreshHiddenData();
 
     formEl.reset();
@@ -323,6 +335,7 @@ async function handleRuleListInteraction(event: Event): Promise<void> {
     if (action === 'delete-rule') {
       const next = await deleteRule(ruleId);
       renderSettings(next);
+      await triggerApplyRulesNow();
       await refreshHiddenData();
       return;
     }
@@ -330,6 +343,7 @@ async function handleRuleListInteraction(event: Event): Promise<void> {
     if (action === 'toggle-rule' && target instanceof HTMLInputElement) {
       const next = await toggleRule(ruleId, target.checked);
       renderSettings(next);
+      await triggerApplyRulesNow();
       await refreshHiddenData();
     }
   } catch {

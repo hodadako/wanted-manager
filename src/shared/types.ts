@@ -43,6 +43,10 @@ export interface UnhideJobRequest {
   jobId: string;
 }
 
+export interface ApplyRulesNowRequest {
+  type: 'APPLY_RULES_NOW';
+}
+
 export interface GetLastHiddenCountResponse {
   lastHiddenCount: number;
   route: string;
@@ -64,7 +68,8 @@ export interface GetPageHiddenItemsResponse {
 export type RuntimeRequest =
   | GetLastHiddenCountRequest
   | GetPageHiddenItemsRequest
-  | UnhideJobRequest;
+  | UnhideJobRequest
+  | ApplyRulesNowRequest;
 
 export interface RuleMatchResult {
   matched: boolean;
