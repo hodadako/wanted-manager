@@ -24,6 +24,14 @@ export const JOB_LINK_SELECTORS = [
   'a[href*="/wd/"]',
   'a[href^="https://www.wanted.co.kr/wd/"]'
 ] as const;
+export const COMPANY_LINK_SELECTORS = [
+  'a[href^="/company/"]',
+  'a[href*="/company/"]',
+  'a[href^="/companies/"]',
+  'a[href*="/companies/"]',
+  'a[href^="https://www.wanted.co.kr/company/"]',
+  'a[href^="https://www.wanted.co.kr/companies/"]'
+] as const;
 
 const MAX_CARD_FALLBACK_DEPTH = 8;
 const MAX_CARD_HEIGHT = 900;
@@ -226,6 +234,29 @@ function hasReasonableCardScope(container: HTMLElement, anchor: HTMLAnchorElemen
   return true;
 }
 
+function hasReasonableCompanyCardScope(container: HTMLElement, anchor: HTMLAnchorElement): boolean {
+  if (!container.contains(anchor)) {
+    return false;
+  }
+
+  const rect = container.getBoundingClientRect();
+  if (rect.width < 100 || rect.height < 60 || rect.height > MAX_CARD_HEIGHT) {
+    return false;
+  }
+
+  const anchorCount = container.querySelectorAll('a[href]').length;
+  if (anchorCount < 1 || anchorCount > 20) {
+    return false;
+  }
+
+  const nestedCardCount = container.querySelectorAll('article, [role="listitem"], li').length;
+  if (nestedCardCount >= 6) {
+    return false;
+  }
+
+  return true;
+}
+
 export function findCardContainer(anchor: HTMLAnchorElement): HTMLElement | null {
   if (!anchor.isConnected || !hasVisibleRect(anchor)) {
     return null;
@@ -265,6 +296,86 @@ export function findCardContainer(anchor: HTMLAnchorElement): HTMLElement | null
   }
 
   return null;
+}
+
+export function collectCompanyAnchors(root: ParentNode | Node): HTMLAnchorElement[] {
+  const found = new Set<HTMLAnchorElement>();
+
+  if (root instanceof Element) {
+    if (root instanceof HTMLAnchorElement) {
+      const href = root.getAttribute('href');
+      if (href && COMPANY_LINK_SELECTORS.some((selector) => root.matches(selector))) {
+        found.add(root);
+      }
+    }
+
+    root.querySelectorAll<HTMLAnchorElement>(COMPANY_LINK_SELECTORS.join(',')).forEach((anchor) => {
+      found.add(anchor);
+    });
+  } else if (root instanceof Document) {
+    root.querySelectorAll<HTMLAnchorElement>(COMPANY_LINK_SELECTORS.join(',')).forEach((anchor) => {
+      found.add(anchor);
+    });
+  }
+
+  return Array.from(found);
+}
+
+export function findCompanyCardContainer(anchor: HTMLAnchorElement): HTMLElement | null {
+  if (!anchor.isConnected || !hasVisibleRect(anchor)) {
+    return null;
+  }
+
+  for (const selector of CARD_CONTAINER_CANDIDATES) {
+    const matched = anchor.closest(selector);
+    if (
+      matched instanceof HTMLElement &&
+      isCardLike(matched) &&
+      hasReasonableCompanyCardScope(matched, anchor)
+    ) {
+      return matched;
+    }
+  }
+
+  let cursor: HTMLElement | null = anchor;
+  let depth = 0;
+
+  while (cursor && depth < MAX_CARD_FALLBACK_DEPTH) {
+    cursor = cursor.parentElement;
+    depth += 1;
+
+    if (!cursor || cursor.tagName.toLowerCase() !== 'div') {
+      continue;
+    }
+
+    if (isCardLike(cursor) && hasReasonableCompanyCardScope(cursor, anchor)) {
+      return cursor;
+    }
+  }
+
+  return null;
+}
+
+export function extractCompanyFromCompanyCard(
+  card: HTMLElement,
+  anchor: HTMLAnchorElement
+): string | null {
+  const dataEl = card.querySelector<HTMLElement>('[data-company-name]');
+  const dataName = normalizeWhitespace(dataEl?.getAttribute('data-company-name') ?? '');
+  if (dataName && !isNoiseCompanyText(dataName)) {
+    return dataName;
+  }
+
+  const anchorDataName = normalizeWhitespace(anchor.getAttribute('data-company-name') ?? '');
+  if (anchorDataName && !isNoiseCompanyText(anchorDataName)) {
+    return anchorDataName;
+  }
+
+  const candidates = getTextCandidates(card, COMPANY_CANDIDATE_SELECTORS)
+    .filter((text) => isLikelyCompany(text))
+    .filter((text) => !isNoiseCompanyText(text));
+
+  return candidates[0] ?? null;
 }
 
 export function extractTitle(card: HTMLElement, anchor: HTMLAnchorElement): string | null {

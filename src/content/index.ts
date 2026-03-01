@@ -1,11 +1,14 @@
 import { matchAnyRule } from '../shared/rules';
 import {
+  collectCompanyAnchors,
   JOB_LINK_SELECTORS,
   collectJobAnchors,
+  extractCompanyFromCompanyCard,
   extractCompany,
   extractJobId,
   extractTitle,
   findCardContainer,
+  findCompanyCardContainer,
   isWdDetailPath,
   isWdListPath,
   normalizeJobUrl
@@ -439,6 +442,59 @@ function flushPending(): void {
         jobId: resolved.jobId,
         jobRole: resolved.jobRole,
         url: resolved.url
+      });
+    }
+  }
+
+  const companyAnchorSet = new Set<HTMLAnchorElement>();
+  nodes.forEach((node) => {
+    collectCompanyAnchors(node).forEach((anchor) => companyAnchorSet.add(anchor));
+  });
+
+  for (const anchor of companyAnchorSet) {
+    if (!anchor.isConnected) {
+      continue;
+    }
+
+    const cardEl = findCompanyCardContainer(anchor);
+    if (!cardEl) {
+      continue;
+    }
+
+    if (processedCards.has(cardEl) || cardEl.dataset.wantedHidden === '1') {
+      continue;
+    }
+    processedCards.add(cardEl);
+
+    const url = normalizeJobUrl(anchor.getAttribute('href'), location.origin) ?? anchor.href;
+    if (!url) {
+      continue;
+    }
+
+    const company = extractCompanyFromCompanyCard(cardEl, anchor);
+    const candidate: JobCandidate = {
+      anchor,
+      cardEl,
+      url,
+      jobId: extractJobId(url),
+      title: null,
+      company
+    };
+
+    const matched = matchAnyRule(candidate, settingsCache.rules);
+    if (!matched.matched) {
+      continue;
+    }
+
+    if (applyAction(cardEl, 'hide')) {
+      hiddenApplied += 1;
+      lastHiddenCount += 1;
+      pushHiddenItem({
+        title: null,
+        company,
+        jobId: candidate.jobId,
+        jobRole: null,
+        url
       });
     }
   }
