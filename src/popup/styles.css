@@ -44,6 +44,20 @@ h2 {
   background: #ffffff;
 }
 
+details {
+  margin-top: 14px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+summary {
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .toggle-row {
   display: flex;
   justify-content: space-between;
@@ -111,6 +125,18 @@ button {
   border: 1px solid #e5e7eb;
   border-radius: 8px;
   padding: 10px;
+}
+
+.hidden-actions {
+  margin-top: 8px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.restore-btn {
+  background: #065f46;
+  font-size: 11px;
+  padding: 6px 8px;
 }
 
 .rule-item {

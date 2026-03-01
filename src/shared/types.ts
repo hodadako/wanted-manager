@@ -38,6 +38,11 @@ export interface GetPageHiddenItemsRequest {
   type: 'GET_PAGE_HIDDEN_ITEMS';
 }
 
+export interface UnhideJobRequest {
+  type: 'UNHIDE_JOB';
+  jobId: string;
+}
+
 export interface GetLastHiddenCountResponse {
   lastHiddenCount: number;
   route: string;
@@ -56,7 +61,10 @@ export interface GetPageHiddenItemsResponse {
   items: HiddenJobItem[];
 }
 
-export type RuntimeRequest = GetLastHiddenCountRequest | GetPageHiddenItemsRequest;
+export type RuntimeRequest =
+  | GetLastHiddenCountRequest
+  | GetPageHiddenItemsRequest
+  | UnhideJobRequest;
 
 export interface RuleMatchResult {
   matched: boolean;

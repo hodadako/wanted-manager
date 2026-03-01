@@ -13,11 +13,6 @@
         <p id="hidden-count">현재 페이지에서 마지막으로 숨긴 개수: -</p>
       </header>
 
-      <section>
-        <h2>숨긴 공고 목록 (현재 페이지)</h2>
-        <div id="hidden-job-list" class="hidden-list"></div>
-      </section>
-
       <section class="toggles" aria-label="옵션">
         <label class="toggle-row" for="detail-enabled">
           <span>상세 페이지 옵션 (/wd/{id})</span>
@@ -47,19 +42,16 @@
             <option value="OR">OR</option>
           </select>
 
-          <label for="action-mode">동작 (고정)</label>
-          <select id="action-mode" name="action" disabled>
-            <option value="hide">숨김 (hide)</option>
-          </select>
-
           <button id="add-rule" type="submit">규칙 추가</button>
         </form>
       </section>
 
       <section>
-        <h2>규칙 목록</h2>
+        <details>
+          <summary>가린 공고 목록 (현재 페이지)</summary>
+          <div id="hidden-job-list" class="hidden-list"></div>
+        </details>
         <p id="rule-error" class="error" role="status" aria-live="polite"></p>
-        <div id="rule-list" class="rule-list"></div>
       </section>
     </main>
 

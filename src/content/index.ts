@@ -153,6 +153,38 @@ function pushHiddenItem(item: HiddenJobItem): void {
   currentHiddenItems.push(item);
 }
 
+function removeHiddenItemByJobId(jobId: string): void {
+  currentHiddenItems = currentHiddenItems.filter((item) => item.jobId !== jobId);
+}
+
+function unhideJobOnPage(jobId: string): number {
+  const hiddenCards = document.querySelectorAll<HTMLElement>('[data-wanted-hidden="1"]');
+  let restoredCount = 0;
+
+  hiddenCards.forEach((card) => {
+    const anchors = card.querySelectorAll<HTMLAnchorElement>(JOB_LINK_SELECTORS.join(','));
+    const matched = Array.from(anchors).some((anchor) => {
+      const url = normalizeJobUrl(anchor.getAttribute('href'), location.origin) ?? anchor.href;
+      return extractJobId(url) === jobId;
+    });
+
+    if (!matched) {
+      return;
+    }
+
+    card.style.removeProperty('display');
+    delete card.dataset.wantedHidden;
+    restoredCount += 1;
+  });
+
+  if (restoredCount > 0) {
+    removeHiddenItemByJobId(jobId);
+    lastHiddenCount = Math.max(0, lastHiddenCount - restoredCount);
+  }
+
+  return restoredCount;
+}
+
 function createQuickHideRule(jobId: string): HideRule {
   return {
     id: `${QUICK_HIDE_RULE_PREFIX}${jobId}`,
@@ -615,6 +647,12 @@ function bindGlobalEvents(): void {
         items: currentHiddenItems
       };
       sendResponse(response);
+      return;
+    }
+
+    if (request?.type === 'UNHIDE_JOB') {
+      const restoredCount = unhideJobOnPage(request.jobId);
+      sendResponse({ restoredCount });
     }
   });
 
