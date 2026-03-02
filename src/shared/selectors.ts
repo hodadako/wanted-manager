@@ -34,7 +34,41 @@ export const COMPANY_LINK_SELECTORS = [
 ] as const;
 
 const MAX_CARD_FALLBACK_DEPTH = 8;
-const MAX_CARD_HEIGHT = 900;
+const MAX_CARD_HEIGHT_DESKTOP = 1200;
+
+function getViewportWidth(): number {
+  return window.innerWidth || document.documentElement.clientWidth || 1280;
+}
+
+function getAdaptiveCardMinHeight(): number {
+  const vw = getViewportWidth();
+  if (vw <= 420) {
+    return 52;
+  }
+  if (vw <= 768) {
+    return 64;
+  }
+  return 80;
+}
+
+function getAdaptiveCardMinWidth(): number {
+  const vw = getViewportWidth();
+  if (vw <= 420) {
+    return 72;
+  }
+  if (vw <= 768) {
+    return 92;
+  }
+  return 120;
+}
+
+function getAdaptiveMaxCardHeight(): number {
+  const vw = getViewportWidth();
+  if (vw <= 768) {
+    return 1600;
+  }
+  return MAX_CARD_HEIGHT_DESKTOP;
+}
 
 function normalizeWhitespace(value: string | null | undefined): string {
   if (!value) {
@@ -201,14 +235,19 @@ export function isCardLike(el: HTMLElement): boolean {
   }
 
   const rect = el.getBoundingClientRect();
-  const sizeSignal = rect.height >= 80 && rect.width >= 120;
+  const sizeSignal =
+    rect.height >= getAdaptiveCardMinHeight() && rect.width >= getAdaptiveCardMinWidth();
 
   const titleSignal = getTextCandidates(el, TITLE_CANDIDATE_SELECTORS).some((text) => isMeaningfulTitle(text));
   const companySignal = getTextCandidates(el, COMPANY_CANDIDATE_SELECTORS).some((text) => isLikelyCompany(text));
   const imageSignal = Boolean(el.querySelector('img, figure, [style*="background-image"]'));
 
   const signals = [titleSignal, companySignal, imageSignal, sizeSignal].filter(Boolean).length;
-  return signals >= 2;
+  if (titleSignal || companySignal) {
+    return signals >= 2;
+  }
+
+  return signals >= 3;
 }
 
 function hasReasonableCardScope(container: HTMLElement, anchor: HTMLAnchorElement): boolean {
@@ -217,7 +256,7 @@ function hasReasonableCardScope(container: HTMLElement, anchor: HTMLAnchorElemen
   }
 
   const rect = container.getBoundingClientRect();
-  if (rect.height > MAX_CARD_HEIGHT) {
+  if (rect.height > getAdaptiveMaxCardHeight()) {
     return false;
   }
 
@@ -240,7 +279,11 @@ function hasReasonableCompanyCardScope(container: HTMLElement, anchor: HTMLAncho
   }
 
   const rect = container.getBoundingClientRect();
-  if (rect.width < 100 || rect.height < 60 || rect.height > MAX_CARD_HEIGHT) {
+  if (
+    rect.width < getAdaptiveCardMinWidth() ||
+    rect.height < getAdaptiveCardMinHeight() ||
+    rect.height > getAdaptiveMaxCardHeight()
+  ) {
     return false;
   }
 
