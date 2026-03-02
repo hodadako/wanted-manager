@@ -342,9 +342,10 @@ function ensureButtonGroup(cardEl: HTMLElement): HTMLDivElement {
   group.setAttribute(QUICK_HIDE_BUTTON_GROUP_ATTR, '1');
   group.style.cssText = [
     'position: absolute',
-    'top: 8px',
+    'top: 0',
     'right: 8px',
-    'z-index: 0',
+    'transform: translateY(-50%)',
+    'z-index: 3',
     'display: flex',
     'flex-direction: column',
     'gap: 4px',
@@ -366,9 +367,10 @@ function ensureCompanyButtonGroup(cardEl: HTMLElement): HTMLDivElement {
   group.setAttribute(QUICK_HIDE_COMPANY_BUTTON_GROUP_ATTR, '1');
   group.style.cssText = [
     'position: absolute',
-    'top: 8px',
+    'top: 0',
     'left: 8px',
-    'z-index: 0',
+    'transform: translateY(-50%)',
+    'z-index: 3',
     'display: flex',
     'flex-direction: column',
     'gap: 4px',
