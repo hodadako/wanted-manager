@@ -37,6 +37,11 @@
           <summary>규칙 목록</summary>
           <div id="rule-list" class="rule-list"></div>
         </details>
+        <div class="io-actions">
+          <button id="export-settings-btn" type="button">내보내기 (JSON)</button>
+          <button id="import-settings-btn" type="button">가져오기 (JSON)</button>
+          <input id="import-settings-file" type="file" accept="application/json" hidden />
+        </div>
         <p id="rule-error" class="error" role="status" aria-live="polite"></p>
       </section>
     </main>

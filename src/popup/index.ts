@@ -15,6 +15,9 @@ const companyInputEl = document.getElementById('company-keywords') as HTMLInputE
 const titleInputEl = document.getElementById('title-keywords') as HTMLInputElement;
 const jobRefsInputEl = document.getElementById('job-refs') as HTMLInputElement;
 const ruleErrorEl = document.getElementById('rule-error') as HTMLParagraphElement;
+const exportSettingsBtnEl = document.getElementById('export-settings-btn') as HTMLButtonElement;
+const importSettingsBtnEl = document.getElementById('import-settings-btn') as HTMLButtonElement;
+const importSettingsFileEl = document.getElementById('import-settings-file') as HTMLInputElement;
 
 let settingsState: Settings;
 let activeTabId: number | null = null;
@@ -370,6 +373,60 @@ function bindEvents(): void {
 
   ruleListEl.addEventListener('change', (event) => {
     void handleRuleListInteraction(event);
+  });
+
+  exportSettingsBtnEl.addEventListener('click', () => {
+    void (async () => {
+      try {
+        ruleErrorEl.textContent = '';
+        const settings = await getSettings();
+        const blob = new Blob([JSON.stringify(settings, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = `wanted-manager-settings-${Date.now()}.json`;
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+        URL.revokeObjectURL(url);
+      } catch {
+        ruleErrorEl.textContent = '내보내기 중 오류가 발생했습니다.';
+      }
+    })();
+  });
+
+  importSettingsBtnEl.addEventListener('click', () => {
+    importSettingsFileEl.click();
+  });
+
+  importSettingsFileEl.addEventListener('change', () => {
+    void (async () => {
+      const file = importSettingsFileEl.files?.[0];
+      if (!file) {
+        return;
+      }
+
+      try {
+        ruleErrorEl.textContent = '';
+        const text = await file.text();
+        const parsed = JSON.parse(text) as Partial<Settings>;
+        const rules = Array.isArray(parsed.rules) ? parsed.rules : [];
+        const next: Settings = {
+          rules: rules,
+          detailPageEnabled: Boolean(parsed.detailPageEnabled),
+          debug: Boolean(parsed.debug)
+        };
+
+        await saveSettings(next);
+        renderSettings(next);
+        await triggerApplyRulesNow();
+        await refreshHiddenData();
+      } catch {
+        ruleErrorEl.textContent = '가져오기 실패: JSON 형식을 확인하세요.';
+      } finally {
+        importSettingsFileEl.value = '';
+      }
+    })();
   });
 }
 
