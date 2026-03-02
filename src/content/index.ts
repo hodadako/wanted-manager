@@ -430,8 +430,29 @@ function buildQuickHideButton(label: string, background: string): HTMLButtonElem
     'color: #fff',
     'font-size: 11px',
     'font-weight: 700',
-    'cursor: pointer'
+    'cursor: pointer',
+    'transform: translateY(0) scale(1)',
+    'transition: transform 110ms ease, filter 110ms ease',
+    'will-change: transform'
   ].join(';');
+
+  const pressIn = () => {
+    button.style.transform = 'translateY(1px) scale(0.97)';
+    button.style.filter = 'brightness(0.92)';
+  };
+
+  const pressOut = () => {
+    button.style.transform = 'translateY(0) scale(1)';
+    button.style.filter = 'none';
+  };
+
+  button.addEventListener('mousedown', pressIn);
+  button.addEventListener('mouseup', pressOut);
+  button.addEventListener('mouseleave', pressOut);
+  button.addEventListener('blur', pressOut);
+  button.addEventListener('touchstart', pressIn, { passive: true });
+  button.addEventListener('touchend', pressOut);
+
   return button;
 }
 
