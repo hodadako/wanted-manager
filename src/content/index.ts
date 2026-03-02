@@ -356,7 +356,7 @@ function showQuickToast(message: string): void {
 
 async function addQuickHideRuleAndApply(
   jobId: string,
-  cardEl: HTMLElement,
+  hideEl: HTMLElement,
   meta: { title: string | null; company: string | null; jobRole: string | null; url: string }
 ): Promise<void> {
   const exists = settingsCache.rules.some(
@@ -371,7 +371,7 @@ async function addQuickHideRuleAndApply(
     settingsCache = next;
   }
 
-  if (applyAction(cardEl, 'hide')) {
+  if (applyAction(hideEl, 'hide')) {
     lastHiddenCount += 1;
     pushHiddenItem({
       title: meta.title,
@@ -385,7 +385,7 @@ async function addQuickHideRuleAndApply(
 
 async function addQuickHideCompanyRuleAndApply(
   company: string,
-  cardEl: HTMLElement,
+  hideEl: HTMLElement,
   meta: { title: string | null; company: string | null; jobRole: string | null; jobId: string | null; url: string }
 ): Promise<void> {
   const normalizedCompany = normalizeKeyword(company);
@@ -406,7 +406,7 @@ async function addQuickHideCompanyRuleAndApply(
     settingsCache = next;
   }
 
-  if (applyAction(cardEl, 'hide')) {
+  if (applyAction(hideEl, 'hide')) {
     lastHiddenCount += 1;
     pushHiddenItem({
       title: meta.title,
@@ -445,6 +445,35 @@ function isQuickHideButtonTarget(cardEl: HTMLElement, jobId: string): boolean {
   return hasJobCardMarker || hasPositionMarker;
 }
 
+function resolveJobHideTarget(cardEl: HTMLElement): HTMLElement {
+  const candidates = [
+    cardEl.closest<HTMLElement>('[role="listitem"]'),
+    cardEl.closest<HTMLElement>('li'),
+    cardEl.closest<HTMLElement>('article')
+  ];
+
+  for (const candidate of candidates) {
+    if (!candidate) {
+      continue;
+    }
+
+    const jobAnchorCount = candidate.querySelectorAll<HTMLAnchorElement>(JOB_LINK_SELECTORS.join(',')).length;
+    if (jobAnchorCount === 0) {
+      continue;
+    }
+
+    const rect = candidate.getBoundingClientRect();
+    const isReasonableSize = rect.width > 120 && rect.width < 1600 && rect.height > 80 && rect.height < 1200;
+    if (!isReasonableSize) {
+      continue;
+    }
+
+    return candidate;
+  }
+
+  return cardEl;
+}
+
 function ensureQuickHideButton(candidate: JobCandidate): void {
   const { cardEl, jobId } = candidate;
   if (!jobId || cardEl.dataset.wantedHidden === '1') {
@@ -475,7 +504,8 @@ function ensureQuickHideButton(candidate: JobCandidate): void {
     event.preventDefault();
     event.stopPropagation();
     const meta = resolveCandidateMeta(candidate);
-    void addQuickHideRuleAndApply(jobId, cardEl, {
+    const hideTarget = resolveJobHideTarget(cardEl);
+    void addQuickHideRuleAndApply(jobId, hideTarget, {
       title: meta.title,
       company: meta.company,
       jobRole: meta.jobRole,
@@ -515,7 +545,8 @@ function ensureQuickHideCompanyButton(candidate: JobCandidate): void {
     event.preventDefault();
     event.stopPropagation();
     const meta = resolveCandidateMeta(candidate);
-    void addQuickHideCompanyRuleAndApply(company, cardEl, {
+    const hideTarget = resolveCompanyHideTarget(cardEl);
+    void addQuickHideCompanyRuleAndApply(company, hideTarget, {
       title: meta.title,
       company: meta.company,
       jobRole: meta.jobRole,
@@ -635,11 +666,11 @@ function flushPending(): void {
 
     cardSuccess += 1;
 
-    if (processedCards.has(cardEl) || cardEl.dataset.wantedHidden === '1') {
+    const hideTarget = resolveJobHideTarget(cardEl);
+    if (processedCards.has(hideTarget) || hideTarget.dataset.wantedHidden === '1') {
       continue;
     }
-
-    processedCards.add(cardEl);
+    processedCards.add(hideTarget);
 
     const url = normalizeJobUrl(anchor.getAttribute('href'), location.origin) ?? anchor.href;
     if (!url) {
@@ -685,7 +716,7 @@ function flushPending(): void {
       continue;
     }
 
-    if (applyAction(cardEl, 'hide')) {
+    if (applyAction(hideTarget, 'hide')) {
       hiddenApplied += 1;
       lastHiddenCount += 1;
       pushHiddenItem({
