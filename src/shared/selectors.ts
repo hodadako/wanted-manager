@@ -273,6 +273,27 @@ function hasReasonableCardScope(container: HTMLElement, anchor: HTMLAnchorElemen
   return true;
 }
 
+function hasStrongJobCardSignal(anchor: HTMLAnchorElement, container: HTMLElement): boolean {
+  const dataCy = container.getAttribute('data-cy')?.toLowerCase() ?? '';
+  if (dataCy === 'job-card' || dataCy.includes('job-card')) {
+    return true;
+  }
+
+  if (
+    container.querySelector('[data-position-id], [data-company-name]') ||
+    anchor.querySelector('[data-position-id], [data-company-name]')
+  ) {
+    return true;
+  }
+
+  const anchorClass = anchor.className || '';
+  if (typeof anchorClass === 'string' && anchorClass.includes('MiniJobCard')) {
+    return true;
+  }
+
+  return false;
+}
+
 function hasReasonableCompanyCardScope(container: HTMLElement, anchor: HTMLAnchorElement): boolean {
   if (!container.contains(anchor)) {
     return false;
@@ -305,6 +326,16 @@ export function findCardContainer(anchor: HTMLAnchorElement): HTMLElement | null
     return null;
   }
 
+  const directJobCard = anchor.closest<HTMLElement>('[data-cy="job-card"]');
+  if (
+    directJobCard &&
+    isCardLike(directJobCard) &&
+    hasReasonableCardScope(directJobCard, anchor)
+  ) {
+    directJobCard.dataset.wantedCard = '1';
+    return directJobCard;
+  }
+
   for (const selector of CARD_CONTAINER_CANDIDATES) {
     const matched = anchor.closest(selector);
     if (
@@ -312,6 +343,9 @@ export function findCardContainer(anchor: HTMLAnchorElement): HTMLElement | null
       isCardLike(matched) &&
       hasReasonableCardScope(matched, anchor)
     ) {
+      if (!hasStrongJobCardSignal(anchor, matched)) {
+        continue;
+      }
       matched.dataset.wantedCard = '1';
       return matched;
     }
@@ -332,7 +366,11 @@ export function findCardContainer(anchor: HTMLAnchorElement): HTMLElement | null
       continue;
     }
 
-    if (isCardLike(cursor) && hasReasonableCardScope(cursor, anchor)) {
+    if (
+      isCardLike(cursor) &&
+      hasReasonableCardScope(cursor, anchor) &&
+      hasStrongJobCardSignal(anchor, cursor)
+    ) {
       cursor.dataset.wantedCard = '1';
       return cursor;
     }

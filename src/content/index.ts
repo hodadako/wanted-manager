@@ -330,27 +330,72 @@ function ensureCardPositioning(cardEl: HTMLElement): void {
       cardEl.dataset.wantedQuickHidePosFixed = '1';
     }
   }
+
+  if (!cardEl.dataset.wantedQuickHideOverflowFixed) {
+    const computed = window.getComputedStyle(cardEl);
+    if (computed.overflow === 'hidden' || computed.overflow === 'clip') {
+      cardEl.style.overflow = 'visible';
+      cardEl.dataset.wantedQuickHideOverflowFixed = '1';
+    }
+  }
+
+  ensureCarouselOverflowVisible(cardEl);
+}
+
+function ensureCarouselOverflowVisible(cardEl: HTMLElement): void {
+  let cursor: HTMLElement | null = cardEl;
+  let depth = 0;
+  while (cursor && depth < 8) {
+    const className = typeof cursor.className === 'string' ? cursor.className : '';
+    const dataCy = cursor.getAttribute('data-cy')?.toLowerCase() ?? '';
+    const isCarouselLike =
+      className.includes('CarouselContainer') ||
+      className.toLowerCase().includes('carousel') ||
+      dataCy.includes('carousel') ||
+      cursor.getAttribute('aria-roledescription')?.toLowerCase() === 'carousel';
+
+    if (isCarouselLike) {
+      const computed = window.getComputedStyle(cursor);
+      if (
+        computed.overflow === 'hidden' ||
+        computed.overflow === 'clip' ||
+        computed.overflowX === 'hidden' ||
+        computed.overflowY === 'hidden'
+      ) {
+        cursor.style.overflow = 'visible';
+        cursor.style.overflowX = 'visible';
+        cursor.style.overflowY = 'visible';
+      }
+    }
+
+    cursor = cursor.parentElement;
+    depth += 1;
+  }
+}
+
+function applyButtonGroupStyle(group: HTMLDivElement, side: 'left' | 'right'): void {
+  group.style.position = 'absolute';
+  group.style.top = '0';
+  group.style.zIndex = '3';
+  group.style.display = 'flex';
+  group.style.flexDirection = 'column';
+  group.style.gap = '4px';
+  group.style.alignItems = side === 'left' ? 'flex-start' : 'flex-end';
+  group.style.left = side === 'left' ? '8px' : '';
+  group.style.right = side === 'right' ? '8px' : '';
+  group.style.transform = 'translateY(-50%)';
 }
 
 function ensureButtonGroup(cardEl: HTMLElement): HTMLDivElement {
   const existing = cardEl.querySelector<HTMLDivElement>(`div[${QUICK_HIDE_BUTTON_GROUP_ATTR}="1"]`);
   if (existing) {
+    applyButtonGroupStyle(existing, 'right');
     return existing;
   }
 
   const group = document.createElement('div');
   group.setAttribute(QUICK_HIDE_BUTTON_GROUP_ATTR, '1');
-  group.style.cssText = [
-    'position: absolute',
-    'top: 0',
-    'right: 8px',
-    'transform: translateY(-50%)',
-    'z-index: 3',
-    'display: flex',
-    'flex-direction: column',
-    'gap: 4px',
-    'align-items: flex-end'
-  ].join(';');
+  applyButtonGroupStyle(group, 'right');
   cardEl.appendChild(group);
   return group;
 }
@@ -360,22 +405,13 @@ function ensureCompanyButtonGroup(cardEl: HTMLElement): HTMLDivElement {
     `div[${QUICK_HIDE_COMPANY_BUTTON_GROUP_ATTR}="1"]`
   );
   if (existing) {
+    applyButtonGroupStyle(existing, 'left');
     return existing;
   }
 
   const group = document.createElement('div');
   group.setAttribute(QUICK_HIDE_COMPANY_BUTTON_GROUP_ATTR, '1');
-  group.style.cssText = [
-    'position: absolute',
-    'top: 0',
-    'left: 8px',
-    'transform: translateY(-50%)',
-    'z-index: 3',
-    'display: flex',
-    'flex-direction: column',
-    'gap: 4px',
-    'align-items: flex-start'
-  ].join(';');
+  applyButtonGroupStyle(group, 'left');
   cardEl.appendChild(group);
   return group;
 }
