@@ -94,6 +94,10 @@ function cleanupRouteMode(): void {
     window.clearTimeout(timerHandle);
     timerHandle = null;
   }
+
+  document
+    .querySelectorAll<HTMLElement>('div[data-wanted-quick-hide-overlay-root="1"]')
+    .forEach((el) => el.remove());
 }
 
 function getRouteKey(): string {
@@ -239,6 +243,98 @@ function createQuickHideCompanyRule(company: string): HideRule {
   };
 }
 
+function ensureCardPositioning(cardEl: HTMLElement): void {
+  if (cardEl.dataset.wantedQuickHidePosFixed === '1') {
+    return;
+  }
+
+  const computed = window.getComputedStyle(cardEl);
+  if (computed.position === 'static') {
+    cardEl.style.position = 'relative';
+  }
+  cardEl.dataset.wantedQuickHidePosFixed = '1';
+}
+
+function getQuickHideMountTarget(cardEl: HTMLElement): HTMLElement {
+  const dataCy = cardEl.getAttribute('data-cy')?.toLowerCase() ?? '';
+  const isJobCard = dataCy.includes('job-card');
+  if (!isJobCard) {
+    return cardEl;
+  }
+
+  const anchor = cardEl.querySelector<HTMLAnchorElement>(JOB_LINK_SELECTORS.join(','));
+  if (!anchor) {
+    return cardEl;
+  }
+
+  const directDivChildren = Array.from(anchor.children).filter(
+    (el): el is HTMLDivElement => el instanceof HTMLDivElement
+  );
+
+  for (const child of directDivChildren) {
+    const hasImage = Boolean(child.querySelector('img'));
+    const hasBookmarkButton = Boolean(
+      child.querySelector('button[aria-label*="bookmark"], button[data-position-id]')
+    );
+    if (hasImage && hasBookmarkButton) {
+      return child;
+    }
+  }
+
+  const image = anchor.querySelector('img');
+  if (image) {
+    const thumb = image.closest('div');
+    if (thumb instanceof HTMLElement) {
+      return thumb;
+    }
+  }
+
+  return cardEl;
+}
+
+function applyButtonGroupStyle(group: HTMLDivElement, side: 'left' | 'right'): void {
+  group.style.position = 'absolute';
+  group.style.bottom = '8px';
+  group.style.zIndex = '2';
+  group.style.display = 'flex';
+  group.style.flexDirection = 'column';
+  group.style.gap = '4px';
+  group.style.alignItems = side === 'left' ? 'flex-start' : 'flex-end';
+  group.style.left = side === 'left' ? '8px' : '';
+  group.style.right = side === 'right' ? '8px' : '';
+  group.style.pointerEvents = 'auto';
+}
+
+function ensureButtonGroup(mountEl: HTMLElement): HTMLDivElement {
+  const existing = mountEl.querySelector<HTMLDivElement>(`div[${QUICK_HIDE_BUTTON_GROUP_ATTR}="1"]`);
+  if (existing) {
+    applyButtonGroupStyle(existing, 'right');
+    return existing;
+  }
+
+  const group = document.createElement('div');
+  group.setAttribute(QUICK_HIDE_BUTTON_GROUP_ATTR, '1');
+  applyButtonGroupStyle(group, 'right');
+  mountEl.appendChild(group);
+  return group;
+}
+
+function ensureCompanyButtonGroup(mountEl: HTMLElement): HTMLDivElement {
+  const existing = mountEl.querySelector<HTMLDivElement>(
+    `div[${QUICK_HIDE_COMPANY_BUTTON_GROUP_ATTR}="1"]`
+  );
+  if (existing) {
+    applyButtonGroupStyle(existing, 'left');
+    return existing;
+  }
+
+  const group = document.createElement('div');
+  group.setAttribute(QUICK_HIDE_COMPANY_BUTTON_GROUP_ATTR, '1');
+  applyButtonGroupStyle(group, 'left');
+  mountEl.appendChild(group);
+  return group;
+}
+
 function showQuickToast(message: string): void {
   const toast = document.createElement('div');
   toast.textContent = message;
@@ -322,100 +418,6 @@ async function addQuickHideCompanyRuleAndApply(
   }
 }
 
-function ensureCardPositioning(cardEl: HTMLElement): void {
-  if (!cardEl.dataset.wantedQuickHidePosFixed) {
-    const computed = window.getComputedStyle(cardEl);
-    if (computed.position === 'static') {
-      cardEl.style.position = 'relative';
-      cardEl.dataset.wantedQuickHidePosFixed = '1';
-    }
-  }
-
-  if (!cardEl.dataset.wantedQuickHideOverflowFixed) {
-    const computed = window.getComputedStyle(cardEl);
-    if (computed.overflow === 'hidden' || computed.overflow === 'clip') {
-      cardEl.style.overflow = 'visible';
-      cardEl.dataset.wantedQuickHideOverflowFixed = '1';
-    }
-  }
-
-  ensureCarouselOverflowVisible(cardEl);
-}
-
-function ensureCarouselOverflowVisible(cardEl: HTMLElement): void {
-  let cursor: HTMLElement | null = cardEl;
-  let depth = 0;
-  while (cursor && depth < 8) {
-    const className = typeof cursor.className === 'string' ? cursor.className : '';
-    const dataCy = cursor.getAttribute('data-cy')?.toLowerCase() ?? '';
-    const isCarouselLike =
-      className.includes('CarouselContainer') ||
-      className.toLowerCase().includes('carousel') ||
-      dataCy.includes('carousel') ||
-      cursor.getAttribute('aria-roledescription')?.toLowerCase() === 'carousel';
-
-    if (isCarouselLike) {
-      const computed = window.getComputedStyle(cursor);
-      if (
-        computed.overflow === 'hidden' ||
-        computed.overflow === 'clip' ||
-        computed.overflowX === 'hidden' ||
-        computed.overflowY === 'hidden'
-      ) {
-        cursor.style.overflow = 'visible';
-        cursor.style.overflowX = 'visible';
-        cursor.style.overflowY = 'visible';
-      }
-    }
-
-    cursor = cursor.parentElement;
-    depth += 1;
-  }
-}
-
-function applyButtonGroupStyle(group: HTMLDivElement, side: 'left' | 'right'): void {
-  group.style.position = 'absolute';
-  group.style.top = '0';
-  group.style.zIndex = '3';
-  group.style.display = 'flex';
-  group.style.flexDirection = 'column';
-  group.style.gap = '4px';
-  group.style.alignItems = side === 'left' ? 'flex-start' : 'flex-end';
-  group.style.left = side === 'left' ? '8px' : '';
-  group.style.right = side === 'right' ? '8px' : '';
-  group.style.transform = 'translateY(-50%)';
-}
-
-function ensureButtonGroup(cardEl: HTMLElement): HTMLDivElement {
-  const existing = cardEl.querySelector<HTMLDivElement>(`div[${QUICK_HIDE_BUTTON_GROUP_ATTR}="1"]`);
-  if (existing) {
-    applyButtonGroupStyle(existing, 'right');
-    return existing;
-  }
-
-  const group = document.createElement('div');
-  group.setAttribute(QUICK_HIDE_BUTTON_GROUP_ATTR, '1');
-  applyButtonGroupStyle(group, 'right');
-  cardEl.appendChild(group);
-  return group;
-}
-
-function ensureCompanyButtonGroup(cardEl: HTMLElement): HTMLDivElement {
-  const existing = cardEl.querySelector<HTMLDivElement>(
-    `div[${QUICK_HIDE_COMPANY_BUTTON_GROUP_ATTR}="1"]`
-  );
-  if (existing) {
-    applyButtonGroupStyle(existing, 'left');
-    return existing;
-  }
-
-  const group = document.createElement('div');
-  group.setAttribute(QUICK_HIDE_COMPANY_BUTTON_GROUP_ATTR, '1');
-  applyButtonGroupStyle(group, 'left');
-  cardEl.appendChild(group);
-  return group;
-}
-
 function buildQuickHideButton(label: string, background: string): HTMLButtonElement {
   const button = document.createElement('button');
   button.type = 'button';
@@ -463,8 +465,9 @@ function ensureQuickHideButton(candidate: JobCandidate): void {
     return;
   }
 
-  ensureCardPositioning(cardEl);
-  const group = ensureButtonGroup(cardEl);
+  const mountEl = getQuickHideMountTarget(cardEl);
+  ensureCardPositioning(mountEl);
+  const group = ensureButtonGroup(mountEl);
   const button = buildQuickHideButton('이 공고 숨기기', 'rgba(17,24,39,0.85)');
   button.setAttribute(QUICK_HIDE_BUTTON_ATTR, '1');
 
@@ -502,8 +505,9 @@ function ensureQuickHideCompanyButton(candidate: JobCandidate): void {
     return;
   }
 
-  ensureCardPositioning(cardEl);
-  const group = ensureCompanyButtonGroup(cardEl);
+  const mountEl = getQuickHideMountTarget(cardEl);
+  ensureCardPositioning(mountEl);
+  const group = ensureCompanyButtonGroup(mountEl);
   const button = buildQuickHideButton('이 회사 숨기기', 'rgba(123,30,58,0.85)');
   button.setAttribute(QUICK_HIDE_COMPANY_BUTTON_ATTR, '1');
 
